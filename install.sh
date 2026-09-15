@@ -137,6 +137,7 @@ install_prerequisites() {
     curl git ca-certificates xz-utils
     samba samba-common-bin smbclient cifs-utils
     nftables fail2ban dnsmasq network-manager
+    rsyslog
   )
 
   # DEBIAN_FRONTEND keeps a package's post-install script from trying to open a dialog on
@@ -376,6 +377,31 @@ fix_permissions() {
   log_success "File permissions set"
 }
 
+# Forward Samba's audit stream to the bridge
+#
+# smbd writes full_audit events to syslog LOCAL5. Debian's default install has no syslog
+# daemon at all — everything goes to the journal — so without this rule the events exist,
+# are visible in journalctl, and never reach the service that is listening for them. That
+# is the difference between a lock appearing in the web interface the moment a control
+# opens a program and not appearing at all.
+#
+# `stop` after the forward is not optional: without it these lines also accumulate in
+# /var/log/syslog, and a busy share fills a Pi's disk with them (R16).
+setup_audit_forwarding() {
+  log_info "Forwarding Samba audit events to the bridge..."
+
+  sudo tee /etc/rsyslog.d/30-tnc-bridge-audit.conf > /dev/null <<'RSYSLOG'
+# Installed by TNC Network Bridge. Forwards Samba full_audit events to the
+# bridge and discards them afterwards, so they never reach the disk (R16).
+local5.*  @127.0.0.1:5514
+local5.*  stop
+RSYSLOG
+
+  sudo systemctl enable rsyslog > /dev/null 2>&1 || true
+  sudo systemctl restart rsyslog ||
+    log_warn "rsyslog restart failed; machine locks will follow smbstatus only"
+}
+
 # Setup systemd service
 setup_systemd() {
   log_info "Setting up systemd service..."
@@ -547,6 +573,7 @@ main() {
   create_runtime_dirs
   install_privileged_helper
   fix_permissions
+  setup_audit_forwarding
   setup_systemd
   self_check
   start_service

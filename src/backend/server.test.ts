@@ -63,6 +63,11 @@ function makeRoot(withBundle: boolean): { paths: Parameters<typeof startServer>[
       port: 0,
       host: '127.0.0.1',
       quiet: true,
+      // Neither belongs in a test that is about the HTTP surface: the audit listener
+      // wants a fixed UDP port, and the reconcile timer would fork smbstatus on a
+      // machine that has none.
+      auditPort: null,
+      lockReconcileIntervalMs: null,
       ...(withBundle ? { staticDir } : {}),
       paths: {
         dbPath: join(root, 'bridge.db'),

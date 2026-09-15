@@ -26,6 +26,7 @@ export const PRIVILEGED_VERBS = [
   'mount-share',
   'unmount-share',
   'reload-samba',
+  'samba-status',
   'write-samba-config',
   'write-dnsmasq-config',
   'apply-network',
@@ -283,6 +284,19 @@ export interface ReloadSambaRequest {
   readonly mode: 'reload' | 'restart';
 }
 
+/**
+ * Read `smbstatus`, which refuses to run as anyone but root.
+ *
+ * Purely a read, but it has to cross the privilege boundary anyway: the service account
+ * cannot open Samba's tdb files, so without this verb the lock reconciler would be told
+ * "no machine has anything open" every single time.
+ */
+export interface SambaStatusRequest {
+  readonly verb: 'samba-status';
+  /** `json` is preferred; `text` covers a Samba build without `--json`. */
+  readonly format: 'json' | 'text';
+}
+
 export interface WriteSambaConfigRequest {
   readonly verb: 'write-samba-config';
   readonly content: string;
@@ -427,6 +441,7 @@ export type PrivilegedRequest =
   | MountShareRequest
   | UnmountShareRequest
   | ReloadSambaRequest
+  | SambaStatusRequest
   | WriteSambaConfigRequest
   | WriteDnsmasqConfigRequest
   | ApplyNetworkRequest
@@ -554,6 +569,9 @@ export function validateRequest(raw: unknown, options: ValidateOptions = {}): Pr
 
     case 'reload-samba':
       return { verb, mode: requireEnum(verb, 'mode', input.mode, ['reload', 'restart']) };
+
+    case 'samba-status':
+      return { verb, format: requireEnum(verb, 'format', input.format, ['json', 'text']) };
 
     case 'write-samba-config':
       return {

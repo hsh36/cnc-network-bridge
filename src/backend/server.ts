@@ -7,13 +7,17 @@ import { createShareCacheRootResolver } from './config/share-paths';
 import { AuthLogWriter } from './logging/auth-log';
 import { ConflictResolver } from './locking/conflict-resolver';
 import { LockManager } from './locking/lock-manager';
+import { TncLockSource } from './locking/tnc-lock-source';
 import { ScheduleLockWindowManager } from './locking/schedule-windows';
 import { MetricsCollector } from './monitoring/collector';
 import { createBridgeMetrics } from './monitoring/registry';
 import { JobRegistry } from './scheduling/jobs';
 import { Scheduler } from './scheduling/scheduler';
 import { AuditLog, installAuditGuards } from './security/audit-log';
+import { invokePrivileged } from './privileged/client';
+import { AuditIngest, DEFAULT_AUDIT_PORT } from './smb/audit-syslog';
 import { SambaConfigManager } from './smb/samba-config-manager';
+import { privilegedStatusRunner, SambaService } from './smb/samba-service';
 import { SyncSupervisor } from './sync/supervisor';
 import { ManagedSchedules } from './system/managed-schedules';
 import { OsUpdateManager } from './system/os-update-manager';
@@ -103,6 +107,15 @@ const DEFAULT_METRICS_INTERVAL_MS = 10_000;
  */
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 20_000;
 
+/**
+ * How often `smbstatus` is reconciled against the lock table.
+ *
+ * Short enough that a lock the audit stream missed appears while the operator is still
+ * looking at the page, long enough that it is not a `smbstatus` fork every second on a
+ * Pi. The audit feed is what makes locks *immediate*; this is what makes them *true*.
+ */
+const DEFAULT_LOCK_RECONCILE_INTERVAL_MS = 15_000;
+
 /** Metrics samples older than this are rolled up into hourly buckets. */
 const METRICS_ROLLUP_AGE_S = 7 * 24 * 60 * 60;
 
@@ -118,6 +131,15 @@ export interface StartServerOptions {
   readonly quiet?: boolean;
   readonly metricsIntervalMs?: number;
   readonly heartbeatIntervalMs?: number;
+  /**
+   * UDP port on loopback for the `full_audit` feed, or `null` to not listen at all.
+   *
+   * Tests pass `null`: binding a fixed port in every server test would make them
+   * conflict with each other and with a service already running on the machine.
+   */
+  readonly auditPort?: number | null;
+  /** How often `smbstatus` is reconciled against the lock table. `null` disables it. */
+  readonly lockReconcileIntervalMs?: number | null;
 }
 
 export interface RunningServer {
@@ -279,6 +301,23 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
   // reach a file the sync engine had just fetched.
   const samba = new SambaConfigManager({ db: service.db, config: service.config, logger });
 
+  // What makes a lock on a control a lock in the database. Both feeds were written,
+  // tested and never called, so `locks` only ever held rows the REST API or a schedule
+  // window had put there — see tnc-lock-source.ts.
+  const lockSource = new TncLockSource({
+    db: service.db,
+    config: service.config,
+    locks,
+    logger,
+  });
+  // Read-only here: applying config is the config manager's job, this instance exists
+  // solely to ask smbd what is open right now — through the helper, because smbstatus
+  // is root-only and this process is not root.
+  const sambaService = new SambaService({
+    logger,
+    run: privilegedStatusRunner(invokePrivileged),
+  });
+
   // The two update schedules are projections of the config sections, not rows an
   // operator maintains by hand. See managed-schedules.ts for why one owner and not two.
   const managedSchedules = new ManagedSchedules({
@@ -384,6 +423,65 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
     await https.listen(port, options.host);
     void sync.reconcile();
     started.push(() => sync.stop());
+
+    // The immediate half of lock detection. A bind failure is logged and survived: the
+    // periodic reconcile below still finds every open file, just later, and an appliance
+    // that refused to serve its own UI because a syslog socket was taken would be a
+    // worse outcome than locks that lag by one interval.
+    const auditPort = options.auditPort === undefined ? DEFAULT_AUDIT_PORT : options.auditPort;
+    if (auditPort !== null) {
+      const ingest = new AuditIngest({
+        port: auditPort,
+        shareRoot: (name) => lockSource.cachePathFor(name),
+        logger,
+      });
+      ingest.onEvent((event) => {
+        lockSource.handleEvent(event);
+      });
+      try {
+        await ingest.start();
+        started.push(() => ingest.stop());
+      } catch (error) {
+        logger.warn(
+          { port: auditPort, error: error instanceof Error ? error.message : String(error) },
+          'could not listen for full_audit events; locks will follow smbstatus only',
+        );
+      }
+    }
+
+    // The authoritative half, plus the reaper for locks whose close was never seen. Both
+    // are cheap and both are unref'd: neither may keep a shutting-down process alive.
+    const reconcileMs =
+      options.lockReconcileIntervalMs === undefined
+        ? DEFAULT_LOCK_RECONCILE_INTERVAL_MS
+        : options.lockReconcileIntervalMs;
+    if (reconcileMs !== null) {
+      let reconciling = false;
+      const reconcileLocks = setInterval(() => {
+        // A slow smbstatus on a busy bridge must not stack up behind itself.
+        if (reconciling) {
+          return;
+        }
+        reconciling = true;
+        void (async () => {
+          try {
+            lockSource.reconcile(await sambaService.statusOrNull());
+            for (const expired of locks.expireStale()) {
+              logger.info({ lockId: expired.id, path: expired.relPath }, 'stale lock expired');
+            }
+          } catch (error) {
+            logger.warn(
+              { error: error instanceof Error ? error.message : String(error) },
+              'lock reconciliation failed',
+            );
+          } finally {
+            reconciling = false;
+          }
+        })();
+      }, reconcileMs);
+      reconcileLocks.unref();
+      started.push(() => clearInterval(reconcileLocks));
+    }
 
     // After the interface binding is settled, so the first render names the NIC the
     // TNC side is actually on. A restart rather than a reload: smbd reads `interfaces`

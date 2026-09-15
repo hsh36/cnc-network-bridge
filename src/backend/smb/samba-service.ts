@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
 
+import { type HelperInvoker } from '../privileged/client';
+
 import { normaliseKey, parseSmbConf } from './smb-conf';
 
 /**
@@ -525,6 +527,55 @@ export interface SambaServiceOptions {
   };
 }
 
+/**
+ * A {@link ServiceRunner} that reads `smbstatus` through the privileged helper.
+ *
+ * `smbstatus` opens Samba's tdb files directly and exits with "smbstatus only works as
+ * root!" for anyone else — and this service runs as `tncbridge`. Calling it directly
+ * therefore fails on the appliance in exactly the way that looks like success: an empty
+ * status, read as "no machine has anything open".
+ *
+ * Only the status commands are routed; anything else this runner is handed is a
+ * programming error rather than something to quietly execute with root.
+ */
+export function privilegedStatusRunner(invoke: HelperInvoker): ServiceRunner {
+  return (argv) => {
+    const [command] = argv;
+    if (!command?.endsWith('smbstatus')) {
+      return Promise.resolve({
+        stdout: '',
+        stderr: `privilegedStatusRunner refuses ${argv.join(' ')}`,
+        code: -1,
+      });
+    }
+
+    try {
+      const response = invoke({
+        verb: 'samba-status',
+        format: argv.includes('--json') ? 'json' : 'text',
+      });
+      const detail = (response.detail ?? {}) as {
+        status?: number;
+        stdout?: string;
+        stderr?: string;
+      };
+      return Promise.resolve({
+        stdout: detail.stdout ?? '',
+        stderr: detail.stderr ?? '',
+        code: detail.status ?? -1,
+      });
+    } catch (error) {
+      // The helper being absent (a dev box, a half-finished install) is a failed read,
+      // not a crash: the caller distinguishes "could not find out" from "nothing open".
+      return Promise.resolve({
+        stdout: '',
+        stderr: error instanceof Error ? error.message : String(error),
+        code: -1,
+      });
+    }
+  };
+}
+
 export class SambaService {
   private readonly run: ServiceRunner;
   private readonly reloadFn: PrivilegedReload | undefined;
@@ -548,10 +599,22 @@ export class SambaService {
    * confused a diagnostic for a dependency.
    */
   async status(): Promise<SmbStatus> {
-    const json = await this.run([this.smbstatusPath, '--json']);
-    if (json.code === 0 && json.stdout.trim().startsWith('{')) {
+    return (await this.statusOrNull()) ?? EMPTY_STATUS;
+  }
+
+  /**
+   * Reads live status, or `null` when `smbstatus` could not be run at all.
+   *
+   * {@link status} deliberately reports "no sessions" when the command fails, which is
+   * right for a dashboard and wrong for anything that would *act* on the absence: the
+   * lock reconciler must be able to tell "no machine has anything open" from "I could
+   * not find out", because the two call for opposite behaviour.
+   */
+  async statusOrNull(): Promise<SmbStatus | null> {
+    const probe = await this.run([this.smbstatusPath, '--json']);
+    if (probe.code === 0 && probe.stdout.trim().startsWith('{')) {
       try {
-        return parseSmbStatusJson(json.stdout);
+        return parseSmbStatusJson(probe.stdout);
       } catch {
         this.log?.warn({}, 'smbstatus --json was unparseable; falling back to the text parser');
       }
@@ -561,9 +624,9 @@ export class SambaService {
     if (text.code !== 0) {
       this.log?.warn(
         { code: text.code, stderr: text.stderr.trim() },
-        'smbstatus failed; treating as no active sessions',
+        'smbstatus failed; skipping lock reconciliation rather than assuming nothing is open',
       );
-      return EMPTY_STATUS;
+      return null;
     }
     return parseSmbStatusText(text.stdout);
   }

@@ -28,6 +28,7 @@ import {
   type PrivilegedRequest,
   type PrivilegedVerb,
   type ReloadSambaRequest,
+  type SambaStatusRequest,
   ROOTS,
   type ServiceRestartRequest,
   type UnmountShareRequest,
@@ -353,6 +354,37 @@ function reloadSamba(
     log.exec([deps.resolve('systemctl'), 'restart', 'smbd', 'nmbd']);
   }
   return { verb: 'reload-samba', commands: log.entries, detail: { mode: request.mode } };
+}
+
+// ---------------------------------------------------------------------------
+// 3b · samba-status
+// ---------------------------------------------------------------------------
+
+/**
+ * Hand `smbstatus` output back to the caller.
+ *
+ * The only read-only verb here, and it exists because `smbstatus` opens Samba's tdb
+ * files directly and refuses outright to run as a non-root user. The service account
+ * therefore cannot answer "what does this control have open right now" on its own —
+ * which is the question the lock table is reconciled against.
+ *
+ * `allowFailure`, because a Samba that is not running is an ordinary state on a bridge
+ * with no shares yet: the caller needs the exit code, not an exception.
+ */
+function sambaStatus(
+  request: SambaStatusRequest,
+  deps: HandlerDeps,
+  log: CommandLog,
+): HandlerResult {
+  const argv =
+    request.format === 'json' ? [deps.resolve('smbstatus'), '--json'] : [deps.resolve('smbstatus')];
+  const result = log.exec(argv, { allowFailure: true });
+
+  return {
+    verb: 'samba-status',
+    commands: log.entries,
+    detail: { status: result.status, stdout: result.stdout, stderr: result.stderr },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1012,6 +1044,8 @@ export function execute(
       return unmountShare(request, deps, log);
     case 'reload-samba':
       return reloadSamba(request, deps, log);
+    case 'samba-status':
+      return sambaStatus(request, deps, log);
     case 'write-samba-config':
       return writeSambaConfig(request, deps, log);
     case 'write-dnsmasq-config':

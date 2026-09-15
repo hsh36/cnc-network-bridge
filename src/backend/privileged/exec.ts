@@ -53,6 +53,7 @@ export const BINARIES = {
   umount: ['/usr/bin/umount', '/bin/umount'],
   systemctl: ['/usr/bin/systemctl', '/bin/systemctl'],
   smbcontrol: ['/usr/bin/smbcontrol'],
+  smbstatus: ['/usr/bin/smbstatus'],
   testparm: ['/usr/bin/testparm'],
   smbpasswd: ['/usr/bin/smbpasswd'],
   useradd: ['/usr/sbin/useradd', '/sbin/useradd'],

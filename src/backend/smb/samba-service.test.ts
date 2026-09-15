@@ -4,6 +4,7 @@ import {
   type CommandOutput,
   decideApplyStrategy,
   parseSmbStatusJson,
+  privilegedStatusRunner,
   parseSmbStatusText,
   SambaService,
   SambaUnsupportedError,
@@ -444,6 +445,60 @@ describe('SambaService.status', () => {
     const status = await service.status();
     expect(status.sessions).toEqual([]);
     expect(status.openFiles).toEqual([]);
+  });
+});
+
+describe('SambaService.statusOrNull', () => {
+  it('distinguishes "nothing is open" from "I could not find out"', async () => {
+    // The whole reason this method exists next to status(): the lock reconciler releases
+    // locks on the strength of the answer, and releasing every lock on the bridge the
+    // moment smbstatus is unavailable is the opposite of what a machine shop needs.
+    const working = new SambaService({ run: () => Promise.resolve(ok(SMBSTATUS_JSON)) });
+    expect(await working.statusOrNull()).not.toBeNull();
+
+    const broken = new SambaService({
+      run: () => Promise.resolve(failed('smbstatus only works as root!')),
+      logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
+    });
+    expect(await broken.statusOrNull()).toBeNull();
+    expect(await broken.status()).toMatchObject({ sessions: [], openFiles: [] });
+  });
+});
+
+describe('privilegedStatusRunner', () => {
+  it('reads smbstatus through the helper and hands back its output', async () => {
+    const invoke = jest.fn().mockReturnValue({
+      ok: true,
+      detail: { status: 0, stdout: SMBSTATUS_JSON, stderr: '' },
+    });
+    const service = new SambaService({ run: privilegedStatusRunner(invoke as never) });
+
+    const status = await service.statusOrNull();
+
+    expect(status?.source).toBe('json');
+    expect(invoke).toHaveBeenCalledWith({ verb: 'samba-status', format: 'json' });
+  });
+
+  it('reports a missing helper as a failed read, not a crash', async () => {
+    // A dev box or a half-finished install has no helper. That must read as "unknown",
+    // which the reconciler skips on — never as an empty status it would act upon.
+    const invoke = jest.fn(() => {
+      throw new Error('could not invoke the privileged helper');
+    });
+    const service = new SambaService({
+      run: privilegedStatusRunner(invoke as never),
+      logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
+    });
+
+    expect(await service.statusOrNull()).toBeNull();
+  });
+
+  it('refuses to run anything but smbstatus with root', async () => {
+    const invoke = jest.fn();
+    const result = await privilegedStatusRunner(invoke as never)(['/usr/sbin/smbd', '-b']);
+
+    expect(result.code).toBe(-1);
+    expect(invoke).not.toHaveBeenCalled();
   });
 });
 

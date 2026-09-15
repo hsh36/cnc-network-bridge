@@ -108,6 +108,7 @@ const VALID_REQUESTS = {
     healthTimeoutSeconds: 120,
   },
   'os-update': { verb: 'os-update', reboot: false },
+  'samba-status': { verb: 'samba-status', format: 'json' },
   'set-samba-user': {
     verb: 'set-samba-user',
     username: 'tnc-werkstatt',
@@ -121,6 +122,7 @@ const INJECTABLE_FIELDS: Record<string, readonly string[]> = {
   'mount-share': ['shareName', 'serverUnc', 'domain', 'username'],
   'unmount-share': ['shareName'],
   'reload-samba': ['mode'],
+  'samba-status': ['format'],
   'write-samba-config': [],
   'write-dnsmasq-config': [],
   'apply-network': ['interface', 'address', 'gateway'],
@@ -138,12 +140,13 @@ const INJECTABLE_FIELDS: Record<string, readonly string[]> = {
 };
 
 describe('the verb allowlist', () => {
-  it('contains exactly the fourteen verbs of ARCHITECTURE §5.4', () => {
-    expect(PRIVILEGED_VERBS).toHaveLength(14);
+  it('contains exactly the fifteen verbs of ARCHITECTURE §5.4', () => {
+    expect(PRIVILEGED_VERBS).toHaveLength(15);
     expect([...PRIVILEGED_VERBS]).toEqual([
       'mount-share',
       'unmount-share',
       'reload-samba',
+      'samba-status',
       'write-samba-config',
       'write-dnsmasq-config',
       'apply-network',
