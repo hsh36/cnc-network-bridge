@@ -59,7 +59,7 @@ export interface HelperResponse {
   readonly code?: 'denied' | 'failed' | 'usage';
 }
 
-const USAGE = `tnc-bridge-helper — privileged operations for the TNC Network Bridge.
+const USAGE = `tnc-bridge-helper — privileged operations for the CNC Network Bridge.
 
 Reads one JSON request on stdin and writes one JSON response on stdout.
 Must be invoked as root, normally through the sudoers rule installed at

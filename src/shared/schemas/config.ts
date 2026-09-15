@@ -491,7 +491,7 @@ export const updatesConfigSchema = z.object({
   githubRepo: z
     .string()
     .regex(/^[A-Za-z0-9._-]{1,100}\/[A-Za-z0-9._-]{1,100}$/, 'Expected owner/repo')
-    .default('hsh36/tnc-network-bridge'),
+    .default('hsh36/cnc-network-bridge'),
   rollbackOnFailure: z.boolean().default(true),
   /** How long `/health` gets to come back green before the release is rolled back (T43). */
   healthTimeoutS: z.number().int().min(10).max(900).default(120),

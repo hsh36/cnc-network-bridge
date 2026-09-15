@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# TNC Network Bridge - Installation Script for Raspberry Pi OS Lite
+# CNC Network Bridge - Installation Script for Raspberry Pi OS Lite
 #
-# Usage: curl -fsSL https://raw.githubusercontent.com/hsh36/tnc-network-bridge/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/hsh36/cnc-network-bridge/main/install.sh | bash
 #
 # This script will:
 # - Check system requirements and install the packages the bridge shells out to
@@ -25,7 +25,7 @@ NC='\033[0m' # No Color
 set -u
 
 # Configuration
-REPO_URL="https://github.com/hsh36/tnc-network-bridge.git"
+REPO_URL="https://github.com/hsh36/cnc-network-bridge.git"
 # /opt, not $HOME: the unit below sets ProtectHome=yes, under which a WorkingDirectory
 # inside /home does not exist as far as the service is concerned.
 INSTALL_DIR="/opt/tnc-bridge"
@@ -391,7 +391,7 @@ setup_audit_forwarding() {
   log_info "Forwarding Samba audit events to the bridge..."
 
   sudo tee /etc/rsyslog.d/30-tnc-bridge-audit.conf > /dev/null <<'RSYSLOG'
-# Installed by TNC Network Bridge. Forwards Samba full_audit events to the
+# Installed by CNC Network Bridge. Forwards Samba full_audit events to the
 # bridge and discards them afterwards, so they never reach the disk (R16).
 local5.*  @127.0.0.1:5514
 local5.*  stop
@@ -411,8 +411,8 @@ setup_systemd() {
 
   sudo tee "/etc/systemd/system/${SERVICE_NAME}.service" > /dev/null <<UNIT
 [Unit]
-Description=TNC Network Bridge - SMB Protocol Bridge
-Documentation=https://github.com/hsh36/tnc-network-bridge
+Description=CNC Network Bridge - SMB Protocol Bridge
+Documentation=https://github.com/hsh36/cnc-network-bridge
 After=network-online.target
 Wants=network-online.target
 
@@ -531,7 +531,7 @@ show_instructions() {
 
   echo ""
   echo -e "${GREEN}============================================================${NC}"
-  echo -e "${GREEN}  TNC Network Bridge Installation Complete!${NC}"
+  echo -e "${GREEN}  CNC Network Bridge Installation Complete!${NC}"
   echo -e "${GREEN}============================================================${NC}"
   echo ""
   echo -e "Installation directory: ${BLUE}$INSTALL_DIR${NC}"
@@ -559,7 +559,7 @@ show_instructions() {
 main() {
   echo ""
   echo -e "${BLUE}============================================================${NC}"
-  echo -e "${BLUE}  TNC Network Bridge Installation${NC}"
+  echo -e "${BLUE}  CNC Network Bridge Installation${NC}"
   echo -e "${BLUE}============================================================${NC}"
   echo ""
 

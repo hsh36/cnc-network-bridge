@@ -1,5 +1,5 @@
 /**
- * Internationalization (i18n) system for TNC Network Bridge UI.
+ * Internationalization (i18n) system for CNC Network Bridge UI.
  *
  * Provides:
  * - Translation key-value lookups

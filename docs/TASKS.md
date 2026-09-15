@@ -1,4 +1,4 @@
-# TNC Network Bridge — Task Breakdown
+# CNC Network Bridge — Task Breakdown
 
 64 tasks · 362 developer-hours · 4 phases
 Companion to [`ARCHITECTURE.md`](./ARCHITECTURE.md) and [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)

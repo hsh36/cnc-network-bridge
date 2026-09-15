@@ -1,11 +1,11 @@
-# TNC Network Bridge - Development Guide
+# CNC Network Bridge - Development Guide
 
 **⚠️ NOTE: This file is local-only (see .gitignore) and not pushed to GitHub. Use for development reference only.**
 
 ## Project Overview
 
-**Project Name**: TNC Network Bridge  
-**GitHub**: [@hsh36/tnc-network-bridge](https://github.com/hsh36/tnc-network-bridge)  
+**Project Name**: CNC Network Bridge  
+**GitHub**: [@hsh36/cnc-network-bridge](https://github.com/hsh36/cnc-network-bridge)  
 **Start Date**: September 2026  
 **License**: GNU General Public License v3.0  
 **Maintainer**: hsh36
@@ -77,7 +77,7 @@
 
 ### Component Structure
 ```
-tnc-network-bridge/
+cnc-network-bridge/
 ├── src/
 │   ├── backend/              # Node.js/Express server
 │   │   ├── sync/            # File sync engine
@@ -135,15 +135,15 @@ tnc-network-bridge/
 
 ### For Development
 ```bash
-git clone https://github.com/hsh36/tnc-network-bridge.git
-cd tnc-network-bridge
+git clone https://github.com/hsh36/cnc-network-bridge.git
+cd cnc-network-bridge
 npm install
 npm run dev
 ```
 
 ### For Production (Raspberry Pi)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hsh36/tnc-network-bridge/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/hsh36/cnc-network-bridge/main/install.sh | bash
 ```
 
 ### Configuration

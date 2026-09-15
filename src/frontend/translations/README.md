@@ -1,6 +1,6 @@
 # Internationalization (i18n) System
 
-This directory contains all translation files for the TNC Network Bridge UI.
+This directory contains all translation files for the CNC Network Bridge UI.
 
 ## Supported Languages
 

@@ -84,7 +84,7 @@ function toForgeAltNames(
 export function generateSelfSignedCertificate(
   options: GenerateSelfSignedOptions = {},
 ): CertificateMaterial {
-  const commonName = options.commonName ?? 'tnc-network-bridge.local';
+  const commonName = options.commonName ?? 'cnc-network-bridge.local';
   const sans = [
     ...new Set([commonName, ...defaultSubjectAltNames(), ...(options.additionalSans ?? [])]),
   ];

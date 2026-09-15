@@ -1,10 +1,10 @@
-# TNC Network Bridge
+# CNC Network Bridge
 
 > A robust network bridge solution for HEIDENHAIN TNC (Tip Numerical Control) machines.
 
 ## Overview
 
-The TNC Network Bridge is a **SMB Protocol Bridge** designed to connect HEIDENHAIN TNC-controlled machines (supporting only SMB 1.0) with modern server environments (SMB 3.1.1+). Running on a Raspberry Pi 5, it provides real-time file synchronization, file locking, and a comprehensive web-based management interface.
+The CNC Network Bridge is a **SMB Protocol Bridge** designed to connect HEIDENHAIN TNC-controlled machines (supporting only SMB 1.0) with modern server environments (SMB 3.1.1+). Running on a Raspberry Pi 5, it provides real-time file synchronization, file locking, and a comprehensive web-based management interface.
 
 This solves the security challenge of bridging legacy SMB 1.0 CNC machines with hardened modern networks without exposing vulnerabilities.
 
@@ -39,7 +39,7 @@ This solves the security challenge of bridging legacy SMB 1.0 CNC machines with 
 **One-liner for Raspberry Pi OS Lite:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hsh36/tnc-network-bridge/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/hsh36/cnc-network-bridge/main/install.sh | bash
 ```
 
 This will:
@@ -55,8 +55,8 @@ steps that need it.
 **Manual Installation:**
 
 ```bash
-git clone https://github.com/hsh36/tnc-network-bridge.git
-cd tnc-network-bridge
+git clone https://github.com/hsh36/cnc-network-bridge.git
+cd cnc-network-bridge
 ./install.sh
 ```
 

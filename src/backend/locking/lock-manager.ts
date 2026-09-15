@@ -358,7 +358,7 @@ export class LockManager {
       const result = writeSidecar(
         mount,
         row.rel_path,
-        `Locked by TNC Network Bridge (${marker}) at ${new Date(row.acquired_at * 1000).toISOString()}\n`,
+        `Locked by CNC Network Bridge (${marker}) at ${new Date(row.acquired_at * 1000).toISOString()}\n`,
       );
       this.db.run(
         `UPDATE locks SET server_lock_ok = @ok, server_lock_error = @err WHERE id = @id`,

@@ -648,7 +648,7 @@ export class AuditIngest extends EventEmitter {
  */
 export const rsyslogRule = (port: number = DEFAULT_AUDIT_PORT): string =>
   [
-    '# Installed by TNC Network Bridge. Forwards Samba full_audit events to the',
+    '# Installed by CNC Network Bridge. Forwards Samba full_audit events to the',
     '# bridge and discards them afterwards, so they never reach the disk (R16).',
     `local5.*  @127.0.0.1:${port}`,
     'local5.*  stop',

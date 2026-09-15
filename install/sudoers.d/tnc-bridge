@@ -1,4 +1,4 @@
-# TNC Network Bridge — privilege separation rule
+# CNC Network Bridge — privilege separation rule
 #
 # Install as /etc/sudoers.d/tnc-bridge, owned root:root, mode 0440.
 # Validate before installing:  visudo -cf install/sudoers.d/tnc-bridge

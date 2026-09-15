@@ -66,7 +66,7 @@ describe('configuration defaults', () => {
       channel: 'stable',
       scheduleCron: '0 3 * * 0',
       autoRestart: true,
-      githubRepo: 'hsh36/tnc-network-bridge',
+      githubRepo: 'hsh36/cnc-network-bridge',
       rollbackOnFailure: true,
       healthTimeoutS: 120,
     });

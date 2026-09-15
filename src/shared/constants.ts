@@ -3,7 +3,7 @@
  * This module must stay free of Node and backend imports — it is compiled into the frontend.
  */
 
-export const PRODUCT_NAME = 'TNC Network Bridge';
+export const PRODUCT_NAME = 'CNC Network Bridge';
 
 /**
  * The one account.

@@ -1,4 +1,4 @@
-# TNC Network Bridge — Implementation Plan
+# CNC Network Bridge — Implementation Plan
 
 **Companion to** [`ARCHITECTURE.md`](./ARCHITECTURE.md) · **Task list:** [`TASKS.md`](./TASKS.md)
 **Version:** 1.0 · **Date:** 2026-09-07
@@ -445,7 +445,7 @@ security.firewall_default    allow       security.tls_min            TLSv1.2
 
 updates.enabled              true        updates.channel             stable
 updates.schedule_cron        "0 3 * * 0" updates.auto_restart        true
-updates.github_repo          hsh36/tnc-network-bridge
+updates.github_repo          hsh36/cnc-network-bridge
 updates.rollback_on_failure  true        updates.health_timeout_s    120
 
 logging.level                info        logging.retain_days         30

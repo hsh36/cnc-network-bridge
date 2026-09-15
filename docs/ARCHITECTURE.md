@@ -1,4 +1,4 @@
-# TNC Network Bridge — Architecture
+# CNC Network Bridge — Architecture
 
 **Status:** Approved for implementation · **Version:** 1.0 · **Date:** 2026-09-07
 
@@ -446,7 +446,7 @@ before any `fs` call. Directory traversal is treated as a hard error, logged to 
 ## 6. Project structure
 
 ```
-tnc-network-bridge/
+cnc-network-bridge/
 ├── src/
 │   ├── shared/                      # imported by BOTH backend and frontend
 │   │   ├── schemas/                 # Zod: config, share, lock, api envelopes

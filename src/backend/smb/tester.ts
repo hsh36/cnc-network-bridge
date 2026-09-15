@@ -720,7 +720,7 @@ async function probeWritable(
   const localSource = join(dir, `tnc-probe-${token}.tmp`);
   const localReadback = join(dir, `tnc-probe-${token}.back`);
   const remoteName = `.tnc-bridge-probe-${token}`;
-  const payload = `tnc-network-bridge connectivity probe ${token}\n`;
+  const payload = `cnc-network-bridge connectivity probe ${token}\n`;
   // The sub-path from the UNC, if any, so the probe tests the directory that will
   // actually be synced rather than the share root — permissions frequently differ.
   const remotePath = target.path === '' ? remoteName : `${target.path}/${remoteName}`;
