@@ -75,20 +75,29 @@ export interface SmbConfInput {
 }
 
 /**
- * The eight audited verbs (R16).
+ * The audited verbs (R16).
  *
  * Only these. `full_audit` on a busy share is capable of filling a disk with success
  * lines nobody reads; each of these earns its place by feeding the lock manager (T14).
+ *
+ * **These are the modern VFS op names, and the spelling is not cosmetic.** Samba renamed
+ * the path-based operations to their `…at` forms (`open` → `openat`, `rename` →
+ * `renameat`, `unlink` → `unlinkat`, `mkdir` → `mkdirat`) and dropped `rmdir` entirely —
+ * removing a directory arrives as `unlinkat`. A name `full_audit` does not recognise does
+ * not merely go unaudited: `init_bitmap` rejects the *entire* list and
+ * `smb_full_audit_connect` then fails every `SMB_VFS_CONNECT`, including `IPC$`. The
+ * symptom is not a missing log line, it is that no machine can connect to any share at
+ * all. Samba 4.22 on Debian 13 is the floor this targets; the old spellings last worked
+ * on 4.8.
  */
 export const AUDIT_VERBS = [
-  'open',
+  'openat',
   'close',
   'write',
   'pwrite',
-  'rename',
-  'unlink',
-  'mkdir',
-  'rmdir',
+  'renameat',
+  'unlinkat',
+  'mkdirat',
 ] as const;
 
 /**

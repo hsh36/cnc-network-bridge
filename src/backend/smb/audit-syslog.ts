@@ -39,7 +39,17 @@ import { createServer, type Server as NetServer, type Socket as NetSocket } from
 // Event model
 // ---------------------------------------------------------------------------
 
-/** The eight verbs configured in `full_audit:success` (T12). */
+/**
+ * The verbs this parser reports, which are *not* the verbs on the wire.
+ *
+ * Samba's own op names changed with the VFS `…at` conversion — what `full_audit:success`
+ * asks for on 4.22 is `openat`, `renameat`, `unlinkat`, `mkdirat` (see `AUDIT_VERBS` in
+ * `smb-conf.ts`), and a removed directory arrives as `unlinkat` rather than `rmdir`. The
+ * names below are the *semantic* ones the lock manager reasons about, kept stable across
+ * that rename so a Samba upgrade cannot quietly change what a lock means.
+ * {@link WIRE_OPERATIONS} maps one onto the other, accepting both spellings: the old ones
+ * cost nothing to keep and a bridge may yet meet an older Samba.
+ */
 export const AUDIT_OPERATIONS = [
   'open',
   'close',
@@ -53,7 +63,21 @@ export const AUDIT_OPERATIONS = [
 
 export type AuditOperation = (typeof AUDIT_OPERATIONS)[number];
 
-const OPERATION_SET = new Set<string>(AUDIT_OPERATIONS);
+/** Samba's op name (either era) → the semantic operation reported to consumers. */
+const WIRE_OPERATIONS: ReadonlyMap<string, AuditOperation> = new Map([
+  ['open', 'open' as const],
+  ['openat', 'open' as const],
+  ['close', 'close' as const],
+  ['write', 'write' as const],
+  ['pwrite', 'pwrite' as const],
+  ['rename', 'rename' as const],
+  ['renameat', 'rename' as const],
+  ['unlink', 'unlink' as const],
+  ['unlinkat', 'unlink' as const],
+  ['mkdir', 'mkdir' as const],
+  ['mkdirat', 'mkdir' as const],
+  ['rmdir', 'rmdir' as const],
+]);
 
 export interface AuditEvent {
   /** When this process received the line, in epoch milliseconds. */
@@ -72,6 +96,11 @@ export interface AuditEvent {
   readonly newPath: string | null;
   /** Open mode when Samba reported one (`r`, `w`, `rw`). */
   readonly mode: string | null;
+}
+
+export interface AuditParseOptions {
+  /** Absolute filesystem path of a share, by its Samba section name (`%S`). */
+  readonly shareRoot?: (share: string) => string | undefined;
 }
 
 /** Syslog facility 21. `full_audit:facility = LOCAL5` in the generated smb.conf. */
@@ -134,8 +163,12 @@ export class AuditParseError extends Error {
  * correct unless the *source* name contains a pipe. That residue is documented rather
  * than pretended away — the alternative would be to ask Samba for an escaping mode it
  * does not have.
+ *
+ * **Paths arrive absolute** from the `…at` operations and are reduced to share-relative
+ * form by {@link toShareRelative}; pass `shareRoot` when the share's filesystem path is
+ * known, which removes the need for that function's name-based fallback.
  */
-export function parseAuditLine(line: string): AuditEvent | null {
+export function parseAuditLine(line: string, options: AuditParseOptions = {}): AuditEvent | null {
   const { payload } = stripSyslogEnvelope(line);
   if (payload === '') {
     return null;
@@ -146,9 +179,10 @@ export function parseAuditLine(line: string): AuditEvent | null {
     return null;
   }
 
-  const [clientIp = '', user = '', share = '', operation = '', result = '', ...args] = fields;
+  const [clientIp = '', user = '', share = '', wireOperation = '', result = '', ...args] = fields;
 
-  if (!OPERATION_SET.has(operation)) {
+  const operation = WIRE_OPERATIONS.get(wireOperation);
+  if (operation === undefined) {
     // A verb we did not subscribe to, or a line that is not an audit record at all.
     // Not an error: rsyslog may forward more than we asked for.
     return null;
@@ -181,24 +215,77 @@ export function parseAuditLine(line: string): AuditEvent | null {
     return null;
   }
 
+  const shareName = share === '' ? null : share;
+  const root = shareName === null ? undefined : options.shareRoot?.(shareName);
+
   return {
     ts: Date.now(),
-    operation: operation as AuditOperation,
+    operation,
     result,
     clientIp: clientIp === '' ? null : clientIp,
     user: user === '' ? null : user,
-    share: share === '' ? null : share,
-    path: normaliseAuditPath(path),
-    newPath: newPath === null ? null : normaliseAuditPath(newPath),
+    share: shareName,
+    path: normaliseAuditPath(toShareRelative(path, shareName, root)),
+    newPath:
+      newPath === null ? null : normaliseAuditPath(toShareRelative(newPath, shareName, root)),
     mode,
   };
 }
 
 /**
+ * Strips the share's filesystem root off a path Samba reported as absolute.
+ *
+ * The `…at` operations log the full path — `/srv/tnc/test/10.H`, not `10.H` — while the
+ * file index is keyed share-relative. Left as-is, every audited event names a file that
+ * does not exist as far as the rest of the bridge is concerned, so nothing matches and no
+ * lock is ever attributed.
+ *
+ * `shareRoot` is the exact answer and is used whenever the caller can supply it. The
+ * fallback, for a parser driven without config, is the share *name*: the first
+ * `/<share>/` segment ends the root, because Samba's own path starts at the share root
+ * and any later repetition of the name is a real subdirectory. A path that is already
+ * relative — older Samba, and the `%S`-less case — is returned untouched.
+ */
+export function toShareRelative(
+  path: string,
+  share: string | null,
+  shareRoot: string | undefined,
+): string {
+  const slashed = path.replace(/\\/g, '/');
+  if (!slashed.startsWith('/')) {
+    return path;
+  }
+
+  if (shareRoot !== undefined && shareRoot !== '') {
+    const base = shareRoot.replace(/\/+$/, '');
+    if (slashed === base) {
+      return '';
+    }
+    if (slashed.startsWith(`${base}/`)) {
+      return slashed.slice(base.length + 1);
+    }
+  }
+
+  if (share !== null && share !== '') {
+    const marker = `/${share}/`;
+    const at = slashed.indexOf(marker);
+    if (at !== -1) {
+      return slashed.slice(at + marker.length);
+    }
+    if (slashed.endsWith(`/${share}`)) {
+      return '';
+    }
+  }
+
+  return slashed;
+}
+
+/**
  * Normalises a path as reported by Samba to the form the file index uses.
  *
- * Samba reports share-relative paths, but emits `.` for the share root and may prefix
- * `./`. Backslashes are converted because an SMB1 client sends them and some Samba
+ * Runs on the already share-relative form produced by {@link toShareRelative}: Samba
+ * emits `.` for the share root and may prefix `./`. Backslashes are converted because an
+ * SMB1 client sends them and some Samba
  * versions pass them through unchanged — an index keyed on `sub\prog.H` would never
  * match the `sub/prog.H` the watcher reports for the same file.
  */
@@ -269,7 +356,7 @@ export interface AuditStats {
 
 export type AuditHandler = (event: AuditEvent) => void | Promise<void>;
 
-export interface AuditIngestOptions {
+export interface AuditIngestOptions extends AuditParseOptions {
   /** UDP port on loopback that rsyslog forwards LOCAL5 to. */
   readonly port?: number;
   readonly host?: string;
@@ -382,7 +469,10 @@ export class AuditIngest extends EventEmitter {
 
     let event: AuditEvent | null;
     try {
-      event = parseAuditLine(line);
+      event = parseAuditLine(
+        line,
+        this.options.shareRoot === undefined ? {} : { shareRoot: this.options.shareRoot },
+      );
     } catch {
       // Defence in depth. parseAuditLine is written not to throw; if it ever does, a
       // malformed filename must not take ingestion down with it.

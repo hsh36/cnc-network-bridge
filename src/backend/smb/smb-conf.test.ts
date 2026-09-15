@@ -93,13 +93,21 @@ describe('renderSmbConf', () => {
     expect(build()).toContain('disable netbios = no');
   });
 
-  it('audits exactly the eight verbs the lock manager consumes', () => {
+  it('audits exactly the verbs the lock manager consumes', () => {
     const content = build();
     expect(content).toContain(`full_audit:success = ${AUDIT_VERBS.join(' ')}`);
     // R16: failures are not logged at all, or a busy share fills the disk.
     expect(content).toContain('full_audit:failure = none');
     expect(content).toContain('full_audit:facility = LOCAL5');
     expect(content).toContain('full_audit:prefix = %I|%u|%S');
+  });
+
+  it('names no VFS op that Samba 4.22 has dropped', () => {
+    // A single unknown name makes full_audit reject the whole list, and
+    // smb_full_audit_connect then fails every SMB_VFS_CONNECT — IPC$ included. The
+    // symptom is not a missing audit line, it is that no machine can connect at all.
+    const dropped = ['open', 'rename', 'unlink', 'mkdir', 'rmdir'];
+    expect(AUDIT_VERBS.filter((verb) => dropped.includes(verb))).toEqual([]);
   });
 
   it('vetoes temp files, sidecar locks and the version store', () => {

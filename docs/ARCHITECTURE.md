@@ -188,7 +188,7 @@ sequenceDiagram
   participant SRV as Fileserver
 
   TNC->>SMBD: SMB_COM_OPEN 12345.H (write)
-  SMBD->>AUD: open|ok|12345.H  (syslog LOCAL5)
+  SMBD->>AUD: openat|ok|w|/srv/tnc/<share>/12345.H  (syslog LOCAL5)
   AUD->>LMGR: acquireLock(path, origin=tnc, ip, smb_pid)
   LMGR->>PROJ: project lock to server
   PROJ->>SRV: create sidecar .~lock.12345.H# (+ optional fcntl byte-range)
@@ -295,7 +295,9 @@ credentials=/etc/tnc-bridge/creds/<share>.cred
   disable netbios = no                # iTNC 530 needs NetBIOS name resolution (nmbd)
   vfs objects = full_audit
   full_audit:prefix = %I|%u|%S
-  full_audit:success = open close write pwrite rename unlink mkdir rmdir
+  full_audit:success = openat close write pwrite renameat unlinkat mkdirat
+                                      # Samba >= 4.9 op names; an unknown one makes
+                                      # full_audit fail EVERY VFS connect, not just the log
   full_audit:failure = none
   full_audit:facility = LOCAL5
   full_audit:priority = NOTICE

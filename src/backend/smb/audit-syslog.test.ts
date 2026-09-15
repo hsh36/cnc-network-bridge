@@ -1,4 +1,6 @@
 import { createSocket } from 'node:dgram';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import {
   AUDIT_OPERATIONS,
@@ -138,6 +140,109 @@ describe('parseAuditLine', () => {
   it('tolerates an absent client IP or user', () => {
     const event = parseAuditLine(line('||programs|open|ok|x.H'));
     expect(event).toMatchObject({ clientIp: null, user: null, share: 'programs' });
+  });
+});
+
+// Verbatim lines from hsh-tncbridge01 (Samba 4.22.10-Debian), captured while a client
+// opened, appended to, renamed and deleted a file on the `test` share. Everything about
+// the modern format is asserted against these rather than against what the docs imply:
+// the `…at` verb names, and paths that arrive absolute where they used to be relative.
+describe('parseAuditLine on Samba 4.22 output', () => {
+  const real = (payload: string): string => `<173>smbd_audit[83032]: ${payload}`;
+  const SHARE_ROOT = '/srv/tnc/test';
+  const rooted = { shareRoot: (share: string) => (share === 'test' ? SHARE_ROOT : undefined) };
+
+  it('maps openat to open, keeping the mode and stripping the share root', () => {
+    const event = parseAuditLine(real('172.16.37.42|tnc-test|test|openat|ok|r|/srv/tnc/test/10.H'));
+
+    expect(event).toMatchObject({
+      operation: 'open',
+      result: 'ok',
+      clientIp: '172.16.37.42',
+      user: 'tnc-test',
+      share: 'test',
+      path: '10.H',
+      mode: 'r',
+    });
+  });
+
+  it('strips the share root from a close', () => {
+    const event = parseAuditLine(real('172.16.37.42|tnc-test|test|close|ok|/srv/tnc/test/10.H'));
+    expect(event).toMatchObject({ operation: 'close', path: '10.H' });
+  });
+
+  it('maps renameat to rename with both paths made relative', () => {
+    const event = parseAuditLine(
+      real(
+        '172.16.37.42|tnc-test|test|renameat|ok|/srv/tnc/test/audit-probe-a.H|' +
+          '/srv/tnc/test/audit-probe b.H',
+      ),
+    );
+
+    expect(event).toMatchObject({
+      operation: 'rename',
+      path: 'audit-probe-a.H',
+      newPath: 'audit-probe b.H',
+    });
+  });
+
+  it('maps mkdirat and unlinkat, the latter also covering a removed directory', () => {
+    expect(
+      parseAuditLine(real('172.16.37.42|tnc-test|test|mkdirat|ok|/srv/tnc/test/neu')),
+    ).toMatchObject({ operation: 'mkdir', path: 'neu' });
+
+    // Samba 4.22 has no rmdir op at all; removing `neu` arrives as unlinkat.
+    expect(
+      parseAuditLine(real('172.16.37.42|tnc-test|test|unlinkat|ok|/srv/tnc/test/neu')),
+    ).toMatchObject({ operation: 'unlink', path: 'neu' });
+  });
+
+  it('prefers a supplied share root over the share name', () => {
+    const event = parseAuditLine(
+      real('172.16.37.42|tnc-test|test|openat|ok|r|/srv/tnc/test/unterordner 1/12345.H'),
+      rooted,
+    );
+    expect(event?.path).toBe('unterordner 1/12345.H');
+  });
+
+  it('maps the share root itself to an empty path', () => {
+    const event = parseAuditLine(real('172.16.37.42|tnc-test|test|openat|ok|r|/srv/tnc/test'));
+    expect(event?.path).toBe('');
+  });
+
+  it('keeps a subdirectory that repeats the share name', () => {
+    // The name-based fallback must end the root at the *first* occurrence: the share is
+    // /srv/tnc/test, so the second `test` is a real directory inside it.
+    const event = parseAuditLine(
+      real('172.16.37.42|tnc-test|test|openat|ok|r|/srv/tnc/test/test/9.H'),
+    );
+    expect(event?.path).toBe('test/9.H');
+  });
+
+  it('still parses the pre-4.9 spellings and relative paths', () => {
+    // A bridge may meet an older Samba; the old form must keep working unchanged.
+    expect(parseAuditLine(line('10.0.0.1|tnc|programs|open|ok|w|12345.H'))).toMatchObject({
+      operation: 'open',
+      path: '12345.H',
+    });
+    expect(parseAuditLine(line('10.0.0.1|tnc|programs|rmdir|ok|sub'))).toMatchObject({
+      operation: 'rmdir',
+      path: 'sub',
+    });
+  });
+});
+
+describe('rsyslogRule', () => {
+  it('is what install.sh actually writes', () => {
+    // The rule lives in TypeScript and is installed by a shell script, so nothing but a
+    // test stops the two from drifting — and the drift is silent: the service listens on
+    // a port nothing forwards to, and locks simply never appear.
+    const installer = readFileSync(join(__dirname, '..', '..', '..', 'install.sh'), 'utf8');
+    for (const rule of rsyslogRule()
+      .split(/\r?\n/)
+      .filter((entry) => entry.trim() !== '')) {
+      expect(installer).toContain(rule);
+    }
   });
 });
 
