@@ -47,21 +47,21 @@ const dhcp = {
 
 /** Answers every call the page makes, with the stored mode under test. */
 function serve(mode: NetworkMode, overrides: { update?: () => Promise<unknown> } = {}): void {
-  vi.mocked(apiClient.api).mockImplementation(((endpoint: string, options?: unknown) => {
-    const params = (options as { params?: { section?: string } } | undefined)?.params;
-    if (endpoint === 'config.get') {
-      return Promise.resolve(params?.section === 'dhcp' ? dhcp : network(mode));
-    }
-    if (endpoint === 'config.update') {
-      return overrides.update === undefined
-        ? Promise.resolve((options as { body: unknown }).body)
-        : overrides.update();
-    }
-    if (endpoint === 'network.interfaces') {
-      return Promise.resolve({ interfaces: [] });
-    }
-    return Promise.resolve({});
-  }) as never);
+  vi.mocked(apiClient.api).mockImplementation(
+    (endpoint: string, options?: { params?: { section?: string }; body?: unknown }) => {
+      const params = options?.params;
+      if (endpoint === 'config.get') {
+        return Promise.resolve(params?.section === 'dhcp' ? dhcp : network(mode));
+      }
+      if (endpoint === 'config.update') {
+        return overrides.update === undefined ? Promise.resolve(options?.body) : overrides.update();
+      }
+      if (endpoint === 'network.interfaces') {
+        return Promise.resolve({ interfaces: [] });
+      }
+      return Promise.resolve({});
+    },
+  );
 }
 
 function renderPage(): void {
