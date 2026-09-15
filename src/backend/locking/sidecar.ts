@@ -40,6 +40,11 @@ export function sidecarRelPath(relPath: string): string {
   return dir === '.' ? marker : posix.join(dir, marker);
 }
 
+/** Is this name one of our own markers rather than a file anyone put there? */
+export function isSidecarPath(relPath: string): boolean {
+  return /^\.~lock\..*#$/.test(posix.basename(relPath));
+}
+
 /** Absolute path of the sidecar under a share's server mount point. */
 export function sidecarAbsolutePath(mountPoint: string, relPath: string): string {
   return posix.join(mountPoint, sidecarRelPath(relPath));

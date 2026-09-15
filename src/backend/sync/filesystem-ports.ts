@@ -6,6 +6,7 @@ import picomatch from 'picomatch';
 import { TEMP_FILE_PREFIX } from '../../shared';
 import { type DbLogger } from '../config/db';
 import { type LockManager } from '../locking/lock-manager';
+import { isSidecarPath } from '../locking/sidecar';
 import { isMountPoint } from '../smb/cifs-mount';
 import { type VersioningEngine } from '../versioning/versioning-engine';
 
@@ -78,7 +79,7 @@ export class FilesystemSyncPorts implements SyncPorts {
       // into the cache. It is not the server's content. Nobody has seen the server.
       this.serverUsable() ? walk(this.options.mountPoint) : Promise.resolve([]),
     ]);
-    return [...new Set([...local, ...remote])].filter((relPath) => !isTemp(relPath)).sort();
+    return [...new Set([...local, ...remote])].filter((relPath) => !isBridgeOwned(relPath)).sort();
   }
 
   statLocal(relPath: string): Promise<Side> {
@@ -186,8 +187,28 @@ export class FilesystemSyncPorts implements SyncPorts {
 }
 
 /** `.tnc-tmp-*` is an in-flight transfer of ours, never a file to sync. */
-function isTemp(relPath: string): boolean {
-  return posix.basename(relPath).startsWith(TEMP_FILE_PREFIX);
+/**
+ * Files the bridge itself owns, which are not content to be synchronised.
+ *
+ * The sidecar is the one that had to be learned the hard way. A lock marker written onto
+ * the server share was pulled into the cache by the next cycle; releasing the lock
+ * removed it from the server, and the cycle after that pushed the cache copy straight
+ * back up. Every lock therefore left a permanent marker on the server — a file the
+ * bridge created, deleted, and then restored on its owner's behalf.
+ *
+ * `veto files` in `smb.conf` hides the same names from the machines. That list and this
+ * predicate describe one idea and are checked against each other in the tests.
+ */
+function isBridgeOwned(relPath: string): boolean {
+  const name = posix.basename(relPath);
+  return (
+    name.startsWith(TEMP_FILE_PREFIX) ||
+    isSidecarPath(relPath) ||
+    name.startsWith('.tnc-bridge-probe') ||
+    relPath === '.tnc-versions' ||
+    relPath.startsWith('.tnc-versions/') ||
+    name === 'lost+found'
+  );
 }
 
 /** Relative paths are POSIX on the wire and in the database; the filesystem may not be. */

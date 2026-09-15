@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { cleanupTmpDbs, tmpDir } from '../../../tests/support/tmp-db';
+import { DEFAULT_VETO_FILES } from '../smb/smb-conf';
 
 import { FilesystemSyncPorts } from './filesystem-ports';
 
@@ -239,6 +240,31 @@ describe('isServerOnline', () => {
 // ---------------------------------------------------------------------------
 // The mount that is not a mount
 // ---------------------------------------------------------------------------
+
+describe('files the bridge owns itself', () => {
+  it('never syncs a lock marker in either direction', () => {
+    // The loop this closes: the marker was written onto the server, pulled into the
+    // cache, deleted from the server on release, and pushed back up from the cache on
+    // the next cycle. Every lock left a permanent marker behind.
+    write(mountPoint, '.~lock.10.H#', 'a marker this bridge wrote');
+    write(cachePath, 'programs/.~lock.PART 2.H#', 'and one in a subdirectory');
+    write(cachePath, '10.H', 'a real program');
+
+    return expect(ports().listPaths()).resolves.toEqual(['10.H']);
+  });
+
+  it('matches what smb.conf hides from the machines', async () => {
+    // Two statements of one idea — the veto list and the sync filter — so they are
+    // checked against each other rather than left to drift.
+    for (const pattern of DEFAULT_VETO_FILES) {
+      const name = pattern.replace('*', 'x');
+      write(cachePath, name, 'bookkeeping');
+    }
+    write(cachePath, 'keep.h', 'content');
+
+    expect(await ports().listPaths()).toEqual(['keep.h']);
+  });
+});
 
 describe('an unmounted mount point', () => {
   it('is not the server, and its contents are not server content', async () => {
