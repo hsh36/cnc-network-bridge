@@ -92,6 +92,24 @@ describe('acquire', () => {
     expect(existsSync(join(mountPoint, '.~lock.PART1.H#'))).toBe(false);
   });
 
+  it('leaves the marker alone on release when the share is not mounted', () => {
+    // Deleting the path anyway would remove a stray local file and report the marker
+    // cleaned up, while the real one on the server stays there for good.
+    const shareId = insertShare();
+    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    expect(existsSync(join(mountPoint, '.~lock.PART1.H#'))).toBe(true);
+
+    const unmounted = new LockManager({
+      db,
+      config,
+      now: () => clockSeconds,
+      isMounted: () => false,
+    });
+    unmounted.release(lock.id);
+
+    expect(existsSync(join(mountPoint, '.~lock.PART1.H#'))).toBe(true);
+  });
+
   it('defaults a TNC lock TTL from configuration', () => {
     const shareId = insertShare();
     const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });

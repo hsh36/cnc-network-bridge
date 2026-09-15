@@ -279,7 +279,15 @@ export class LockManager {
 
     if ((row.server_lock_kind as ServerLockKind) === 'sidecar') {
       const mount = this.getMountPoint(row.share_id);
-      if (mount !== undefined) {
+      if (mount !== undefined && !this.isMounted(mount)) {
+        // Symmetry with the write side, and for a sharper reason: deleting a path under
+        // an unmounted mount point would remove a stray local file and report the
+        // marker cleaned up, while the real one on the server stays there for good.
+        this.logger?.warn(
+          { shareId: row.share_id, relPath: row.rel_path, mount },
+          'server share is not mounted; the lock marker on it could not be removed',
+        );
+      } else if (mount !== undefined) {
         const result = removeSidecar(mount, row.rel_path);
         if (!result.ok) {
           this.logger?.warn(
