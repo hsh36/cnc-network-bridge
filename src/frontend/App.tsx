@@ -6,6 +6,7 @@ import { FullPageSpinner } from './components/ui/Spinner';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { SetupProvider, useSetupStatus } from './hooks/useSetupStatus';
 import { ConfigPage } from './pages/ConfigPage';
+import { NetworkPage } from './pages/NetworkPage';
 import { Dashboard } from './pages/Dashboard';
 import { FilesBrowserPage } from './pages/FilesBrowserPage';
 import { LocksConflictsPage } from './pages/LocksConflictsPage';
@@ -122,6 +123,14 @@ function AppRoutes(): JSX.Element {
         element={
           <RequireAuth>
             <Scheduling />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/network"
+        element={
+          <RequireAuth>
+            <NetworkPage />
           </RequireAuth>
         }
       />

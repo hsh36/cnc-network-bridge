@@ -21,13 +21,17 @@ const NAV_ITEMS = [
   { to: '/monitoring', labelKey: 'monitoring' },
   { to: '/versions', labelKey: 'versions' },
   { to: '/scheduling', labelKey: 'scheduling' },
+  // Its own entry rather than a tab in Configuration: it is the first page of a new
+  // install, the one an operator returns to when the bridge is unreachable, and the
+  // only one that can take the interface away while it is being used.
+  { to: '/network', labelKey: 'network' },
   { to: '/system-updates', labelKey: 'updates' },
   { to: '/config', labelKey: 'config' },
   { to: '/logs', labelKey: 'logs' },
 ] as const;
 
 export function Layout({ children }: { readonly children: ReactNode }): JSX.Element {
-  const { session, logout } = useAuth();
+  const { logout } = useAuth();
   const t = useTranslation('navigation');
   const navigate = useNavigate();
 
@@ -37,7 +41,17 @@ export function Layout({ children }: { readonly children: ReactNode }): JSX.Elem
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="flex shrink-0 flex-col border-b border-border bg-white md:w-56 md:border-b-0 md:border-r dark:border-border-dark dark:bg-surface-dark-subtle">
+      {/*
+        Sticky and viewport-tall from `md` up.
+
+        Without it the aside is simply a flex child that grows to the height of the
+        page, so on a long page — the log viewer, a share list — the footer with the
+        theme toggle, language and logout sat somewhere far below the fold. They are
+        controls, not content: they have to stay where they were put. The nav scrolls
+        on its own if it ever outgrows the viewport, which keeps the footer pinned to
+        the bottom either way.
+      */}
+      <aside className="flex shrink-0 flex-col border-b border-border bg-white md:sticky md:top-0 md:h-screen md:w-56 md:border-b-0 md:border-r dark:border-border-dark dark:bg-surface-dark-subtle">
         <div className="flex items-center gap-2 px-4 py-4">
           <span className="text-lg" aria-hidden="true">
             🌉
@@ -46,7 +60,7 @@ export function Layout({ children }: { readonly children: ReactNode }): JSX.Elem
             {PRODUCT_NAME}
           </span>
         </div>
-        <nav className="flex flex-1 flex-row gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:overflow-visible">
+        <nav className="flex flex-1 flex-row gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:overflow-y-auto">
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
@@ -65,12 +79,10 @@ export function Layout({ children }: { readonly children: ReactNode }): JSX.Elem
             </NavLink>
           ))}
         </nav>
-        <div className="space-y-2 border-t border-border px-4 py-3 dark:border-border-dark">
-          <div className="min-w-0">
-            <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-300">
-              {session?.username ?? '—'}
-            </p>
-          </div>
+        {/* No account name here: this appliance has one login and no user management, so
+          the line only ever said "admin" — a word that told an operator nothing and
+          took up the space the controls beneath it needed. */}
+        <div className="shrink-0 border-t border-border px-4 py-3 dark:border-border-dark">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1">
               <ThemeToggle />

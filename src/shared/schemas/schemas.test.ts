@@ -129,6 +129,7 @@ describe('network configuration cross-field rules', () => {
     // A single-NIC bridge is a legitimate deployment as long as the machine segment is
     // tagged onto its own VLAN; that is what stops SMB1 reaching the corporate LAN.
     const result = networkConfigSchema.safeParse({
+      mode: 'vlan-trunk',
       lan: { interface: 'eth0', vlan: 10 },
       tnc: { interface: 'eth0', vlan: 20 },
     });
@@ -137,8 +138,45 @@ describe('network configuration cross-field rules', () => {
 
   it('still refuses one interface when both sides carry the same VLAN', () => {
     const result = networkConfigSchema.safeParse({
+      mode: 'vlan-trunk',
       lan: { interface: 'eth0', vlan: 10 },
       tnc: { interface: 'eth0', vlan: 10 },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('defaults to the two-NIC server mode with no internet for the machines', () => {
+    const parsed = networkConfigSchema.parse({});
+    expect(parsed.mode).toBe('dual-nic-server');
+    // A control runs an OS nobody patches any more; routing it to the internet is opt-in.
+    expect(parsed.bridge.internetAccess).toBe(false);
+  });
+
+  it('holds each mode to the cabling it claims', () => {
+    // Trunk mode with two NICs would render a form full of VLAN fields that change
+    // nothing; a two-NIC mode with one NIC is the untagged shared-interface case.
+    expect(
+      networkConfigSchema.safeParse({
+        mode: 'vlan-trunk',
+        lan: { interface: 'eth0', vlan: 10 },
+        tnc: { interface: 'eth1', vlan: 20 },
+      }).success,
+    ).toBe(false);
+
+    expect(
+      networkConfigSchema.safeParse({
+        mode: 'dual-nic-bridge',
+        lan: { interface: 'eth0' },
+        tnc: { interface: 'eth0' },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('requires a VLAN id on both sides in trunk mode', () => {
+    const result = networkConfigSchema.safeParse({
+      mode: 'vlan-trunk',
+      lan: { interface: 'eth0', vlan: 10 },
+      tnc: { interface: 'eth0' },
     });
     expect(result.success).toBe(false);
   });

@@ -36,7 +36,8 @@
     "settings": "Einstellungen",
     "logout": "Abmelden",
     "scheduling": "Zeitpläne",
-    "updates": "Updates"
+    "updates": "Updates",
+    "network": "Netzwerk"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -234,7 +235,26 @@
     "load_error": "Einstellungen konnten nicht geladen werden",
     "loading": "Wird geladen …",
     "drift_title": "Gespeichert, aber auf der Schnittstelle nicht aktiv",
-    "drift_body": "Konfiguriert: {configured}. Tatsächlich auf der Schnittstelle: {actual}. Der letzte Übernahmeversuch ist fehlgeschlagen. Mit «Speichern und übernehmen» erneut versuchen."
+    "drift_body": "Konfiguriert: {configured}. Tatsächlich auf der Schnittstelle: {actual}. Der letzte Übernahmeversuch ist fehlgeschlagen. Mit «Speichern und übernehmen» erneut versuchen.",
+    "network_title": "Netzwerk",
+    "network_subtitle": "Wie dieses Gerät verkabelt ist und was jede Seite tut.",
+    "mode_title": "Betriebsmodus",
+    "mode_subtitle": "Den Modus wählen, der zur Verkabelung passt. Er bestimmt, welche Einstellungen unten gelten.",
+    "mode_legend": "Betriebsmodus",
+    "mode_vlan-trunk_title": "Eine NIC, VLAN-Trunk",
+    "mode_vlan-trunk_body": "Beide Seiten teilen sich eine Netzwerkkarte an einem Trunk-Port und werden über 802.1Q-Tags getrennt. Für Geräte mit nur einem nutzbaren Port — der Switch-Port muss beide VLANs führen.",
+    "mode_dual-nic-server_title": "Zwei NICs, Server-Modus",
+    "mode_dual-nic-server_body": "Eine Karte pro Seite. Mehrere Maschinen greifen über die maschinenseitige Karte auf dieselbe Freigabe zu, wie bei einem normalen Fileserver. Der Regelfall.",
+    "mode_dual-nic-bridge_title": "Zwei NICs, Brücken-Modus",
+    "mode_dual-nic-bridge_body": "Eine Karte pro Seite, aber jede Maschine erhält ihre eigene Brücke ins LAN statt eines gemeinsamen Segments. Die Adresse vergibt die Brücke selbst, dafür wird auf der Maschinenseite ein DHCP-Server benötigt.",
+    "interfaces_title": "Schnittstellen",
+    "interfaces_subtitle": "Adressierung für jede Seite der Brücke.",
+    "dhcp_title": "DHCP-Server (Maschinenseite)",
+    "dhcp_subtitle": "Im Brücken-Modus gibt es auf dem Maschinensegment keinen anderen DHCP-Server; die Steuerung erhält ihre Adresse von hier. Der Standardbereich umfasst genau eine Adresse.",
+    "internet_title": "Internetzugang",
+    "internet_subtitle": "Ob eine Steuerung über diese Brücke über das LAN hinaus routen darf.",
+    "internet_access": "Maschinen dürfen über die Brücke ins Internet",
+    "internet_access_hint": "Standardmässig aus, und das sollte es normalerweise bleiben: eine CNC-Steuerung läuft auf einem Betriebssystem, das keine Sicherheitsupdates mehr erhält. Nur für einen konkreten Bedarf einschalten, etwa eine Lizenzprüfung oder einen Update-Server des Herstellers."
   },
   "locks": {
     "title": "Dateisperren",

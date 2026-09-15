@@ -36,7 +36,8 @@
     "settings": "Settings",
     "logout": "Logout",
     "scheduling": "Scheduling",
-    "updates": "Updates"
+    "updates": "Updates",
+    "network": "Network"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -234,7 +235,26 @@
     "load_error": "Could not load the settings",
     "loading": "Loading…",
     "drift_title": "Saved, but not active on the interface",
-    "drift_body": "Configured: {configured}. Actually on the interface: {actual}. The last attempt to apply this failed. Press \"Save and apply\" to try again."
+    "drift_body": "Configured: {configured}. Actually on the interface: {actual}. The last attempt to apply this failed. Press \"Save and apply\" to try again.",
+    "network_title": "Network",
+    "network_subtitle": "How this appliance is cabled, and what each side does.",
+    "mode_title": "Operating mode",
+    "mode_subtitle": "Pick the arrangement that matches the cabling. It decides which settings below apply.",
+    "mode_legend": "Operating mode",
+    "mode_vlan-trunk_title": "One NIC, VLAN trunk",
+    "mode_vlan-trunk_body": "Both sides share a single network card on a trunk port, kept apart by 802.1Q tags. For an appliance with only one usable port — the switch port must be configured to carry both VLANs.",
+    "mode_dual-nic-server_title": "Two NICs, server mode",
+    "mode_dual-nic-server_body": "One card per side. Several controls reach the same share over the machine-side card, the way a file server is normally used. The usual choice.",
+    "mode_dual-nic-bridge_title": "Two NICs, bridge mode",
+    "mode_dual-nic-bridge_body": "One card per side, with each control on its own bridged leg to the LAN rather than a shared segment. The bridge hands out the address itself, so a DHCP server is needed on the machine side.",
+    "interfaces_title": "Interfaces",
+    "interfaces_subtitle": "Addressing for each side of the bridge.",
+    "dhcp_title": "DHCP server (machine side)",
+    "dhcp_subtitle": "Bridge mode has no other DHCP server on the machine segment, so the control gets its address from here. The default range is one address wide.",
+    "internet_title": "Internet access",
+    "internet_subtitle": "Whether a control may route beyond the LAN through this bridge.",
+    "internet_access": "Allow machines to reach the internet through the bridge",
+    "internet_access_hint": "Off by default, and it should normally stay off: a CNC control runs an operating system that no longer receives security fixes. Turn it on only for a specific need, such as a licence check or a vendor update server."
   },
   "locks": {
     "title": "Locks & Conflicts",
