@@ -36,6 +36,14 @@ export interface SyncSupervisorOptions {
   /** Overridable so a test does not have to wait a real scan interval. */
   readonly now?: () => number;
   /**
+   * Whether a share's mount point is really a mounted filesystem.
+   *
+   * Left unset in production, where the real `st_dev` check applies. A test working
+   * against temp directories sets it, because a temp directory is not a mount and the
+   * engine would — correctly — refuse to read it as the server side.
+   */
+  readonly isMounted?: (mountPoint: string) => boolean;
+  /**
    * Builds the mount for a share.
    *
    * Injectable because the real one shells out to `mount.cifs` through sudo: a test of
@@ -225,6 +233,9 @@ export class SyncSupervisor {
           ...(this.options.versioning === undefined ? {} : { versioning: this.options.versioning }),
           logger,
           serverOnline: () => active.online,
+          ...(this.options.isMounted === undefined
+            ? {}
+            : { isMounted: () => this.options.isMounted?.(share.mountPoint) ?? true }),
         }),
         diffConfig: { conflictMode: share.conflictMode },
       }),

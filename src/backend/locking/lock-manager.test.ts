@@ -39,7 +39,15 @@ beforeEach(() => {
   mountPoint = join(tmpDir(), 'mount');
   mkdirSync(mountPoint, { recursive: true });
   clockSeconds = 1_700_000_000;
-  manager = new LockManager({ db, config, now: () => clockSeconds });
+  // The temp directory stands in for a mounted server share. Stated rather than
+  // assumed: production checks that the mount point really is a mount, because an
+  // unmounted one takes the marker onto the appliance's own disk and reports success.
+  manager = new LockManager({
+    db,
+    config,
+    now: () => clockSeconds,
+    isMounted: () => true,
+  });
 });
 
 afterEach(() => {
@@ -60,6 +68,28 @@ describe('acquire', () => {
     expect(lock.releasedAt).toBeNull();
     expect(lock.serverLockOk).toBe(true);
     expect(existsSync(join(mountPoint, '.~lock.PART1.H#'))).toBe(true);
+  });
+
+  it('refuses to write the marker when the share is not mounted', () => {
+    // The case that prompted the check: the server's hostname did not resolve, the CIFS
+    // mount failed, and the mount point stayed behind as an ordinary directory. The
+    // marker landed on the appliance's own disk and the row said it had reached the
+    // server. The lock is still real — it is a database row, not a file on the server —
+    // but the row must say what actually happened.
+    const unmounted = new LockManager({
+      db,
+      config,
+      now: () => clockSeconds,
+      isMounted: () => false,
+    });
+    const shareId = insertShare();
+
+    const lock = unmounted.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+
+    expect(lock.releasedAt).toBeNull();
+    expect(lock.serverLockOk).toBe(false);
+    expect(lock.serverLockError).toContain('not a mounted share');
+    expect(existsSync(join(mountPoint, '.~lock.PART1.H#'))).toBe(false);
   });
 
   it('defaults a TNC lock TTL from configuration', () => {

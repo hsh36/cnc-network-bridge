@@ -54,6 +54,10 @@ function supervisor(): SyncSupervisor {
   return new SyncSupervisor({
     db,
     config,
+    // The temp directories here stand in for mounted shares. Production checks that a
+    // mount point really is a mount, because an unmounted one is a plain local directory
+    // whose contents are not the server's.
+    isMounted: () => true,
     createMount: (spec) => {
       const fake = new FakeMount(spec.shareName);
       mounts.push(fake);

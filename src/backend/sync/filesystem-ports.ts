@@ -6,6 +6,7 @@ import picomatch from 'picomatch';
 import { TEMP_FILE_PREFIX } from '../../shared';
 import { type DbLogger } from '../config/db';
 import { type LockManager } from '../locking/lock-manager';
+import { isMountPoint } from '../smb/cifs-mount';
 import { type VersioningEngine } from '../versioning/versioning-engine';
 
 import { type Side, type VersionCapture } from './diff-engine';
@@ -42,6 +43,16 @@ export interface FilesystemPortsOptions {
   readonly logger?: DbLogger | undefined;
   /** Answers "is the server reachable"; the mount manager knows, this class does not. */
   readonly serverOnline: () => boolean;
+  /**
+   * Whether {@link mountPoint} is really a mounted filesystem.
+   *
+   * A failed CIFS mount leaves the mount point behind as an ordinary directory, and
+   * anything that happens to be in it then reads as the server's own content. That is
+   * not hypothetical: a lock marker written there was pulled into the cache and served
+   * to the machines. Injected so tests can use a temp directory as a stand-in; the
+   * default is the real check.
+   */
+  readonly isMounted?: () => boolean;
 }
 
 export class FilesystemSyncPorts implements SyncPorts {
@@ -60,7 +71,12 @@ export class FilesystemSyncPorts implements SyncPorts {
       // A missing or unreachable mount yields nothing rather than throwing. Treating it
       // as an empty share would be catastrophic — every file would look server-deleted —
       // which is why the orchestrator gates deletions on isServerOnline().
-      walk(this.options.mountPoint),
+      //
+      // An *unmounted* mount point is worse than an unreachable one, and is why this is
+      // guarded rather than simply walked: the directory still exists on the appliance's
+      // own disk, so whatever is in it would be read as the server's content and pulled
+      // into the cache. It is not the server's content. Nobody has seen the server.
+      this.serverUsable() ? walk(this.options.mountPoint) : Promise.resolve([]),
     ]);
     return [...new Set([...local, ...remote])].filter((relPath) => !isTemp(relPath)).sort();
   }
@@ -107,7 +123,22 @@ export class FilesystemSyncPorts implements SyncPorts {
   }
 
   isServerOnline(): Promise<boolean> {
-    return Promise.resolve(this.options.serverOnline());
+    return Promise.resolve(this.serverUsable());
+  }
+
+  /**
+   * Reachable *and* actually mounted.
+   *
+   * Both halves gate deletions, so both have to be true before the engine may believe
+   * that a file missing on the server side was deleted there.
+   */
+  private serverUsable(): boolean {
+    if (!this.options.serverOnline()) {
+      return false;
+    }
+    return this.options.isMounted === undefined
+      ? isMountPoint(this.options.mountPoint)
+      : this.options.isMounted();
   }
 
   isLocked(relPath: string): boolean {

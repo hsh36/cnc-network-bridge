@@ -9,6 +9,7 @@ import {
   classifyError,
   errnoOf,
   findMountEntry,
+  isMountPoint,
   isTransient,
   type MountEntry,
   MountError,
@@ -312,6 +313,42 @@ describe('findMountEntry', () => {
       }
     })();
     expect((error as MountError).kind).toBe('missing');
+  });
+});
+
+describe('isMountPoint', () => {
+  // st_dev, because that is what actually distinguishes a mount root from a directory.
+  const devices = (map: Record<string, number>) => (path: string) => {
+    const dev = map[path];
+    if (dev === undefined) {
+      throw new Error(`ENOENT: ${path}`);
+    }
+    return { dev };
+  };
+
+  it('says yes when the path is on a different device from its parent', () => {
+    expect(
+      isMountPoint(
+        '/mnt/tnc-server/test',
+        devices({ '/mnt/tnc-server/test': 42, '/mnt/tnc-server': 1 }),
+      ),
+    ).toBe(true);
+  });
+
+  it('says no for a directory that merely looks like a mount point', () => {
+    // The failure this exists to catch: the CIFS mount did not come up, so the mount
+    // point is an ordinary directory on the SD card — same device as its parent — and
+    // everything written to it stays on the appliance.
+    expect(
+      isMountPoint(
+        '/mnt/tnc-server/test',
+        devices({ '/mnt/tnc-server/test': 1, '/mnt/tnc-server': 1 }),
+      ),
+    ).toBe(false);
+  });
+
+  it('says no for a path it cannot stat at all', () => {
+    expect(isMountPoint('/mnt/tnc-server/gone', devices({}))).toBe(false);
   });
 });
 

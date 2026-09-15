@@ -7,6 +7,8 @@ import {
 } from '../../shared';
 import { type ConfigManager } from '../config/config-manager';
 import { type Db, type DbLogger, type SqlValue } from '../config/db';
+import { isMountPoint } from '../smb/cifs-mount';
+
 import { removeSidecar, writeSidecar } from './sidecar';
 
 /**
@@ -128,6 +130,15 @@ export interface LockManagerOptions {
   readonly logger?: DbLogger;
   /** Seconds since the epoch. Overridable so TTL/expiry tests do not sleep. */
   readonly now?: () => number;
+  /**
+   * Whether a share's mount point is really a mounted filesystem.
+   *
+   * Injected so a test can use an ordinary temp directory as a stand-in for a mounted
+   * share. Production takes the default, which is the real `st_dev` check — the reason
+   * this option exists at all is that the unchecked version wrote lock markers onto the
+   * appliance's own disk and reported them as projected onto the server.
+   */
+  readonly isMounted?: (mountPoint: string) => boolean;
 }
 
 export class LockManager {
@@ -135,6 +146,7 @@ export class LockManager {
   private readonly config: ConfigManager;
   private readonly logger: DbLogger | undefined;
   private readonly now: () => number;
+  private readonly isMounted: (mountPoint: string) => boolean;
   private readonly handlers = new Set<LockEventHandler>();
 
   constructor(options: LockManagerOptions) {
@@ -142,6 +154,7 @@ export class LockManager {
     this.config = options.config;
     this.logger = options.logger;
     this.now = options.now ?? (() => Math.floor(Date.now() / 1000));
+    this.isMounted = options.isMounted ?? ((path) => isMountPoint(path));
   }
 
   /**
@@ -354,6 +367,19 @@ export class LockManager {
         id: row.id,
         err: 'share has no known mount point',
       });
+    } else if (!this.isMounted(mount)) {
+      // The marker would land on the appliance's own disk, where the server will never
+      // see it — and the row would claim the opposite. Recording the failure is the
+      // honest outcome: the lock itself is real either way, because it is a database row
+      // and not a file on someone else's server.
+      this.db.run(`UPDATE locks SET server_lock_ok = 0, server_lock_error = @err WHERE id = @id`, {
+        id: row.id,
+        err: `${mount} is not a mounted share; the marker was not written`,
+      });
+      this.logger?.warn(
+        { shareId: row.share_id, relPath: row.rel_path, mount },
+        'server share is not mounted; the lock is held locally but not projected',
+      );
     } else {
       const result = writeSidecar(
         mount,

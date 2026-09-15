@@ -22,6 +22,10 @@ function ports(overrides: Partial<ConstructorParameters<typeof FilesystemSyncPor
     excludePatterns: [],
     maxFileSizeMb: 512,
     serverOnline: () => true,
+    // A temp directory stands in for the mounted share. Stated rather than assumed:
+    // production takes the real st_dev check, and a directory that is not a mount is
+    // exactly the case the guard exists for — see the tests at the bottom of this file.
+    isMounted: () => true,
     ...overrides,
   });
 }
@@ -229,5 +233,35 @@ describe('isServerOnline', () => {
   it('reports what it was told, because only the mount knows', async () => {
     expect(await ports({ serverOnline: () => false }).isServerOnline()).toBe(false);
     expect(await ports({ serverOnline: () => true }).isServerOnline()).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The mount that is not a mount
+// ---------------------------------------------------------------------------
+
+describe('an unmounted mount point', () => {
+  it('is not the server, and its contents are not server content', async () => {
+    // A failed CIFS mount leaves the mount point behind as an ordinary directory on the
+    // appliance's own disk. Anything in it — a lock marker the bridge itself wrote, say —
+    // would otherwise be read as a file the server has and the cache does not, and pulled.
+    write(cachePath, 'programs/real.h', 'a');
+    write(mountPoint, '.~lock.real.h#', 'written by this appliance, not by the server');
+
+    const offline = ports({ isMounted: () => false });
+
+    expect(await offline.listPaths()).toEqual(['programs/real.h']);
+    expect(await offline.isServerOnline()).toBe(false);
+  });
+
+  it('gates deletions too, not just the listing', async () => {
+    // isServerOnline is what the orchestrator asks before believing a file was deleted
+    // on the server. An unmounted mount point must never answer yes to that question.
+    expect(await ports({ isMounted: () => false, serverOnline: () => true }).isServerOnline()).toBe(
+      false,
+    );
+    expect(await ports({ isMounted: () => true, serverOnline: () => false }).isServerOnline()).toBe(
+      false,
+    );
   });
 });

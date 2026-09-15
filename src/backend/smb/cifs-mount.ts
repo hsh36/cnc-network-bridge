@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { promises as fsPromises, type Stats } from 'node:fs';
+import { promises as fsPromises, statSync, type Stats } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { type HelperInvoker, invokePrivileged, PrivilegedCallError } from '../privileged/client';
@@ -306,6 +306,37 @@ export function findMountEntry(entries: readonly MountEntry[], mountPoint: strin
  *
  * `soft` *is* reported, which is why the check that actually matters still holds.
  */
+/**
+ * Is `path` the root of a mounted filesystem, or just a directory?
+ *
+ * The distinction is not academic. When a CIFS mount fails — the server is down, or in
+ * the case that prompted this, its short hostname does not resolve — the mount point
+ * does not disappear. It stays behind as an ordinary directory on the SD card, and
+ * anything that writes to it succeeds. The bridge then reported a lock as projected onto
+ * the server share while the marker sat on local disk, and the sync engine read that
+ * same directory as the server's own content and pulled it into the cache.
+ *
+ * The check is the one `mountpoint(1)` uses: a mount root and its parent are on
+ * different devices. Comparing `st_dev` needs no external binary, no `/proc` parsing, and
+ * — unlike reading a mount table — gives the right answer inside a unit's private mount
+ * namespace, which is where this service actually runs.
+ *
+ * Injectable, and the default is the real syscall. A caller that cannot stat the path at
+ * all gets `false`: an unreadable path is not a mount anyone should be writing to.
+ */
+export function isMountPoint(
+  path: string,
+  statAt: (target: string) => { dev: number | bigint } = (target) => statSync(target),
+): boolean {
+  try {
+    const here = statAt(path);
+    const parent = statAt(dirname(path));
+    return here.dev !== parent.dev;
+  } catch {
+    return false;
+  }
+}
+
 export function assertSoftMount(entry: MountEntry): void {
   const options = new Set(entry.options);
 
