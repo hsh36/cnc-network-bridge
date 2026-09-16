@@ -6,17 +6,22 @@ import { ApiError, api } from '../lib/api-client';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { Card, CardBody, CardHeader } from './ui/Card';
-import { Checkbox, Input } from './ui/Input';
+import { Checkbox } from './ui/Input';
+import { SchedulePicker } from './SchedulePicker';
 import { Spinner } from './ui/Spinner';
 
 /**
  * The two automatic-update schedules, each writing to its own config section.
  *
  * Replaces a card whose editor called `onSave` and then did nothing — the operator
- * configured a schedule, the dialog closed, and nothing was stored anywhere. The cron
- * expressions here are the ones the scheduler actually fires on: saving reconciles the
- * matching row in the schedules table, which is why the Schedules page refuses to edit
- * those rows.
+ * configured a schedule, the dialog closed, and nothing was stored anywhere. The
+ * schedules picked here are the ones the scheduler actually fires on: saving reconciles
+ * the matching row in the schedules table, which is why the Schedules page refuses to
+ * edit those rows.
+ *
+ * There is no repository field. It was one, and a value stored in the database outlived
+ * a rename of the repository, which is how an appliance stops updating itself without
+ * anything appearing to be wrong.
  *
  * OS updates are a separate section and a separate schedule rather than a checkbox on
  * this one, because they want a different cadence: the appliance can update in the
@@ -144,18 +149,10 @@ export function AutomaticUpdates(): JSX.Element {
                   checked={bridge.enabled}
                   onChange={(e) => setBridge({ ...bridge, enabled: e.target.checked })}
                 />
-                <Input
-                  id="updatesCron"
-                  label={t('schedule_cron')}
-                  hint={t('schedule_cron_hint')}
+                <SchedulePicker
+                  idPrefix="updates"
                   value={bridge.scheduleCron}
-                  onChange={(e) => setBridge({ ...bridge, scheduleCron: e.target.value })}
-                />
-                <Input
-                  id="updatesRepo"
-                  label={t('github_repo')}
-                  value={bridge.githubRepo}
-                  onChange={(e) => setBridge({ ...bridge, githubRepo: e.target.value })}
+                  onChange={(cron) => setBridge({ ...bridge, scheduleCron: cron })}
                 />
                 <div className="flex items-center gap-3">
                   <Button
@@ -213,12 +210,10 @@ export function AutomaticUpdates(): JSX.Element {
                   checked={os.enabled}
                   onChange={(e) => setOs({ ...os, enabled: e.target.checked })}
                 />
-                <Input
-                  id="osUpdatesCron"
-                  label={t('schedule_cron')}
-                  hint={t('schedule_cron_hint')}
+                <SchedulePicker
+                  idPrefix="osUpdates"
                   value={os.scheduleCron}
-                  onChange={(e) => setOs({ ...os, scheduleCron: e.target.value })}
+                  onChange={(cron) => setOs({ ...os, scheduleCron: cron })}
                 />
                 <div className="flex flex-col gap-1">
                   <Checkbox

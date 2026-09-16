@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { cleanupTmpDbs, tmpDb } from '../../../tests/support/tmp-db';
-import { type BridgeEvent } from '../../shared';
+import { GITHUB_REPO, type BridgeEvent } from '../../shared';
 import { ConfigManager } from '../config/config-manager';
 import { type Db } from '../config/db';
 import { runMigrations } from '../config/migrations/runner';
@@ -161,18 +161,27 @@ describe('check', () => {
     expect(last?.type === 'update' ? last.status.available?.version : undefined).toBe('0.2.0');
   });
 
-  it('reads the repository from config at check time, not at construction', async () => {
+  it('asks the repository the code names, not one left in the database', async () => {
+    // How updating broke in the field: `updates.githubRepo` was a config key, the
+    // product was renamed, and the stored row kept pointing at the old repository —
+    // where the default could never take over, because the row existed. The check then
+    // asked GitHub about a repository that was no longer there, every night, quietly.
     const seen: string[] = [];
     const spy = ((url: string) => {
       seen.push(url);
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
     }) as unknown as typeof fetch;
 
+    db.run(
+      `INSERT INTO config (key, value, is_secret, updated_at, updated_by)
+         VALUES ('updates.githubRepo', '"hsh36/tnc-bridge"', 0, 0, 'test')`,
+    );
+
     const updates = manager(spy);
-    config.set('updates', { ...config.get('updates'), githubRepo: 'someone/else' });
     await updates.check();
 
-    expect(seen[0]).toContain('/repos/someone/else/releases');
+    expect(seen[0]).toContain(`/repos/${GITHUB_REPO}/releases`);
+    expect(seen[0]).not.toContain('tnc-bridge');
   });
 });
 

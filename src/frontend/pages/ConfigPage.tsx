@@ -15,6 +15,7 @@ import { Checkbox, Input, Select } from '../components/ui/Input';
 import { Tabs } from '../components/ui/Tabs';
 import { FullPageSpinner } from '../components/ui/Spinner';
 import { CertificateManager } from '../components/CertificateManager';
+import { SchedulePicker } from '../components/SchedulePicker';
 import { SharesSection } from '../components/SharesSection';
 import { useTranslation } from '../hooks/useTranslation';
 import { api } from '../lib/api-client';
@@ -663,29 +664,20 @@ function UpdatesSection(): JSX.Element {
         <option value="beta">{t('channel_beta')}</option>
       </Select>
 
-      <Input
-        id="scheduleCron"
-        label={t('schedule_cron')}
-        value={form.scheduleCron}
-        onChange={(e) => {
-          setForm({ ...form, scheduleCron: e.target.value });
-          setIsDirty(true);
-        }}
-        error={errors.scheduleCron}
-        hint="e.g., '0 3 * * 0' for 3 AM on Sundays"
-      />
-
-      <Input
-        id="githubRepo"
-        label={t('github_repo')}
-        value={form.githubRepo}
-        onChange={(e) => {
-          setForm({ ...form, githubRepo: e.target.value });
-          setIsDirty(true);
-        }}
-        error={errors.githubRepo}
-        hint="Format: owner/repo"
-      />
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+          {t('update_schedule')}
+        </span>
+        <SchedulePicker
+          idPrefix="updatesConfig"
+          value={form.scheduleCron}
+          onChange={(cron) => {
+            setForm({ ...form, scheduleCron: cron });
+            setIsDirty(true);
+          }}
+          {...(errors.scheduleCron === undefined ? {} : { error: errors.scheduleCron })}
+        />
+      </div>
 
       <Checkbox
         id="autoRestart"

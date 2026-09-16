@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Input } from '../components/ui/Input';
+import { ScheduleSummary, SchedulePicker } from '../components/SchedulePicker';
 import { useApiQuery } from '../hooks/useApi';
 import { api, ApiError } from '../lib/api-client';
 
@@ -16,12 +17,11 @@ import { api, ApiError } from '../lib/api-client';
  * are easy to type and almost impossible to *read back* with confidence. So the page
  * never asks the operator to trust their own reading of an expression.
  *
- * - A set of presets covers the cases this product actually has (nightly, weekly,
- *   hourly, a night-shift lock window), so most schedules are made without touching
- *   cron syntax at all.
- * - Anything typed by hand is previewed against the server before it can be saved: the
- *   form shows the next five real firing times. `0 0 30 2 *` is five valid fields that
- *   never fire, and the only way to make that visible is to show the empty answer.
+ * - The schedule is picked from dropdowns — how often, which day, what time. Presets
+ *   and a cron field came before it and only covered the writing half: a list of eight
+ *   five-field expressions is still unreadable, so the list describes them too.
+ * - The preview asks the server for the next real firing times before anything is
+ *   saved, which is also the check on this page's own arithmetic.
  * - Existing schedules show their last result and next run, so a job that has been
  *   failing silently every night is apparent at a glance rather than on investigation.
  */
@@ -82,15 +82,6 @@ export function Scheduling(): JSX.Element {
     scan: t('scan_help'),
     backup: t('backup_help'),
   };
-
-  const PRESETS: readonly { label: string; cron: string }[] = [
-    { label: t('preset_night'), cron: '0 3 * * *' },
-    { label: t('preset_hour'), cron: '0 * * * *' },
-    { label: t('preset_15min'), cron: '*/15 * * * *' },
-    { label: t('preset_sunday'), cron: '0 4 * * 0' },
-    { label: t('preset_weeknight'), cron: '0 22 * * 1-5' },
-    { label: t('preset_month'), cron: '0 2 1 * *' },
-  ];
 
   const [name, setName] = useState('');
   const [kind, setKind] = useState<ScheduleKind>('prune');
@@ -255,36 +246,17 @@ export function Scheduling(): JSX.Element {
               />
             )}
 
-            <div className="flex flex-wrap gap-2">
-              {PRESETS.map((preset) => (
-                <Button
-                  key={preset.cron}
-                  type="button"
-                  size="sm"
-                  variant={cron === preset.cron ? 'primary' : 'secondary'}
-                  onClick={() => {
-                    setCron(preset.cron);
-                    setNextRuns(undefined);
-                  }}
-                >
-                  {preset.label}
-                </Button>
-              ))}
-            </div>
+            <SchedulePicker
+              idPrefix="schedule"
+              value={cron}
+              onChange={(next) => {
+                setCron(next);
+                setNextRuns(undefined);
+              }}
+              {...(formError === undefined ? {} : { error: formError })}
+            />
 
             <div className="flex flex-wrap items-end gap-3">
-              <Input
-                id="scheduleCron"
-                label={t('cron_label')}
-                value={cron}
-                onChange={(e) => {
-                  setCron(e.target.value);
-                  setNextRuns(undefined);
-                }}
-                className="min-w-[12rem] font-mono"
-                error={formError}
-                hint={t('cron_hint')}
-              />
               <Button type="button" variant="secondary" onClick={handlePreview}>
                 {t('check_button')}
               </Button>
@@ -346,7 +318,7 @@ export function Scheduling(): JSX.Element {
                     )}
                   </div>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    <span className="font-mono">{schedule.cron}</span>
+                    <ScheduleSummary cron={schedule.cron} />
                     {schedule.enabled && <> · next {formatNextRun(schedule.nextRunAt)}</>}
                     {schedule.target?.pathGlob !== undefined && <> · {schedule.target.pathGlob}</>}
                   </p>

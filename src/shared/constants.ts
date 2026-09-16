@@ -6,6 +6,19 @@
 export const PRODUCT_NAME = 'CNC Network Bridge';
 
 /**
+ * Where updates come from.
+ *
+ * Deliberately a constant and not a config key. It was one, and that is exactly how an
+ * appliance ends up unable to update itself: the repository was renamed, the value in
+ * the database still pointed at the old one, and the update check asked GitHub about a
+ * repository that no longer exists — silently, on a schedule, forever. Nobody
+ * administering a CNC bridge has a reason to point it at a different repository, and
+ * the one field that can break updating beyond self-repair should not be editable in a
+ * web form.
+ */
+export const GITHUB_REPO = 'hsh36/cnc-network-bridge';
+
+/**
  * The one account.
  *
  * This appliance has no user management and is not getting any: it is administered by

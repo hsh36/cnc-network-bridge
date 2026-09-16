@@ -75,7 +75,16 @@ describe('Scheduling page', () => {
     // unscoped query would match twice and prove nothing about what the list renders.
     const row = screen.getByRole('listitem');
     expect(within(row).getByText('Prune old versions')).toBeInTheDocument();
-    expect(within(row).getByText(/0 3 \* \* \*/)).toBeInTheDocument();
+    // The row describes the schedule rather than printing `0 3 * * *` at someone.
+    expect(within(row).getByText(/Runs every day at 03:00/)).toBeInTheDocument();
+  });
+
+  it('prints an expression it cannot describe, instead of inventing a description', async () => {
+    mockApi([schedule({ cron: '0 0 29 2 *' })]);
+    render(<Scheduling />);
+
+    await waitFor(() => expect(screen.getByText('nightly prune')).toBeInTheDocument());
+    expect(within(screen.getByRole('listitem')).getByText('0 0 29 2 *')).toBeInTheDocument();
   });
 
   it('shows an empty state when nothing is scheduled', async () => {
@@ -135,14 +144,58 @@ describe('Scheduling page', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
   });
 
-  it('applies a preset to the cron field', async () => {
+  it('builds the expression from the dropdowns, so nobody has to write cron', async () => {
+    mockApi([], { 'schedules.create': schedule() });
+    render(<Scheduling />);
+    await waitFor(() => expect(screen.getByText('No schedules yet')).toBeInTheDocument());
+
+    await userEvent.selectOptions(screen.getByLabelText('How often'), 'weekly');
+    await userEvent.selectOptions(screen.getByLabelText('Day'), '6');
+    await userEvent.selectOptions(screen.getByLabelText('Hour'), '22');
+    await userEvent.selectOptions(screen.getByLabelText('Minute'), '30');
+
+    expect(screen.getByText(/Runs every Saturday at 22:30/)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Name'), 'weekend prune');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => {
+      expect(apiMock).toHaveBeenCalledWith('schedules.create', {
+        body: {
+          name: 'weekend prune',
+          kind: 'prune',
+          cron: '30 22 * * 6',
+          target: null,
+          enabled: true,
+        },
+      });
+    });
+  });
+
+  it('hides the fields a frequency does not use', async () => {
     mockApi([]);
     render(<Scheduling />);
     await waitFor(() => expect(screen.getByText('No schedules yet')).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole('button', { name: 'Every hour' }));
+    // An hourly job has no hour to pick, and a 15-minute one has neither.
+    await userEvent.selectOptions(screen.getByLabelText('How often'), 'hourly');
+    expect(screen.queryByLabelText('Hour')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Minute')).toBeInTheDocument();
 
-    expect(screen.getByLabelText('Cron expression')).toHaveValue('0 * * * *');
+    await userEvent.selectOptions(screen.getByLabelText('How often'), 'every15min');
+    expect(screen.queryByLabelText('Minute')).not.toBeInTheDocument();
+  });
+
+  it('keeps the chosen time while the frequency is changed', async () => {
+    mockApi([]);
+    render(<Scheduling />);
+    await waitFor(() => expect(screen.getByText('No schedules yet')).toBeInTheDocument());
+
+    await userEvent.selectOptions(screen.getByLabelText('Hour'), '22');
+    await userEvent.selectOptions(screen.getByLabelText('How often'), 'hourly');
+    await userEvent.selectOptions(screen.getByLabelText('How often'), 'weekly');
+
+    expect(screen.getByLabelText('Hour')).toHaveValue('22');
   });
 
   it('will not submit without a name', async () => {

@@ -483,15 +483,16 @@ export const securityConfigSchema = z.object({
 
 export const updateChannelSchema = z.enum(['stable', 'beta']);
 
+/**
+ * The repository is not here on purpose — see `GITHUB_REPO` in `shared/constants`.
+ * A stored repository survived a rename and pointed the update check at a repository
+ * that no longer existed.
+ */
 export const updatesConfigSchema = z.object({
   enabled: z.boolean().default(true),
   channel: updateChannelSchema.default('stable'),
   scheduleCron: cronSchema.default('0 3 * * 0'),
   autoRestart: z.boolean().default(true),
-  githubRepo: z
-    .string()
-    .regex(/^[A-Za-z0-9._-]{1,100}\/[A-Za-z0-9._-]{1,100}$/, 'Expected owner/repo')
-    .default('hsh36/cnc-network-bridge'),
   rollbackOnFailure: z.boolean().default(true),
   /** How long `/health` gets to come back green before the release is rolled back (T43). */
   healthTimeoutS: z.number().int().min(10).max(900).default(120),

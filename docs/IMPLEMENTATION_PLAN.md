@@ -445,12 +445,16 @@ security.firewall_default    allow       security.tls_min            TLSv1.2
 
 updates.enabled              true        updates.channel             stable
 updates.schedule_cron        "0 3 * * 0" updates.auto_restart        true
-updates.github_repo          hsh36/cnc-network-bridge
 updates.rollback_on_failure  true        updates.health_timeout_s    120
 
 logging.level                info        logging.retain_days         30
 monitoring.sample_interval_s 10          monitoring.disk_warn_pct    85
 ```
+
+The update repository is deliberately not a config key. It was one, and a stored value
+outlived a rename of the repository: the row existed, so the new default never applied,
+and the appliance checked a repository that no longer existed — nightly, silently, until
+someone noticed it had stopped updating. It is now `GITHUB_REPO` in `shared/constants`.
 
 ---
 

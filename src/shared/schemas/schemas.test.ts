@@ -66,10 +66,14 @@ describe('configuration defaults', () => {
       channel: 'stable',
       scheduleCron: '0 3 * * 0',
       autoRestart: true,
-      githubRepo: 'hsh36/cnc-network-bridge',
       rollbackOnFailure: true,
       healthTimeoutS: 120,
     });
+  });
+
+  it('has no repository field, so a stored value cannot outlive a rename', () => {
+    const parsed = configSectionSchemas.updates.parse({ githubRepo: 'someone/else' });
+    expect(parsed).not.toHaveProperty('githubRepo');
   });
 
   it('defaults the TNC side to NT1 — the entire point of the product', () => {

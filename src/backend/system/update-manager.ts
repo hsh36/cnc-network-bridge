@@ -1,4 +1,4 @@
-import { type BridgeEvent } from '../../shared';
+import { GITHUB_REPO, type BridgeEvent } from '../../shared';
 import {
   type UpdateHistoryEntry,
   type UpdateStatus,
@@ -28,7 +28,7 @@ import { fetchLatestRelease, isNewer, normaliseVersion, type ReleaseInfo } from 
 export interface UpdateManagerOptions {
   readonly currentVersion: string;
   readonly publishEvent: (event: BridgeEvent) => void;
-  /** Read for `githubRepo` and `channel` at check time, not at construction. */
+  /** Read for `channel` at check time, not at construction. */
   readonly config: ConfigManager;
   /** History outlives the process — an update ends in a restart. */
   readonly db?: Db;
@@ -192,7 +192,7 @@ export class UpdateManager {
 
     try {
       const release = await fetchLatestRelease({
-        repo: updates.githubRepo,
+        repo: GITHUB_REPO,
         channel: updates.channel,
         ...(this.fetchImpl ? { fetchImpl: this.fetchImpl } : {}),
       });
