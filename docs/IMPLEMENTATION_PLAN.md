@@ -382,7 +382,7 @@ All bodies validated by shared Zod schemas; the same schemas type the frontend c
 | POST | `/config/test/smb` · `/test/ad` · `/test/network` | Connectivity probes with structured diagnostics |
 | GET/POST | `/shares` · GET/PATCH/DELETE `/shares/:id` | Share CRUD |
 | POST | `/shares/:id/{scan,resync,pause,resume,mount,unmount}` | Share actions |
-| GET | `/files?share=&path=&state=&q=` | Index browser (paginated) |
+| GET | `/files?share=&path=&state=&q=` · GET `/files/:id/{preview,download}` | Index browser (paginated), and reading one indexed file out of the local cache |
 | GET/POST | `/locks` · DELETE `/locks/:id` | List / manual lock / force release |
 | GET | `/conflicts` · POST `/conflicts/:id/{resolve,acknowledge}` | Conflict review |
 | GET | `/versions?share=&path=` · GET `/versions/:id/download` · POST `/versions/:id/{restore,pin}` · DELETE `/versions/:id` | Version history |

@@ -73,3 +73,13 @@ export const TEMP_FILE_PREFIX = '.tnc-tmp-';
  * "leave this secret unchanged" (T5).
  */
 export const SECRET_SENTINEL = '********';
+
+/**
+ * How much of a file the preview endpoint reads and returns.
+ *
+ * 64 KiB is several hundred lines of a NC program — far more than the question "is this
+ * the right program" needs, and small enough that opening a file that turns out to be a
+ * 400 MB CAD export costs nothing. A file larger than this is returned truncated rather
+ * than refused: the beginning is what identifies it.
+ */
+export const PREVIEW_MAX_BYTES = 64 * 1024;

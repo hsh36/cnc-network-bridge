@@ -506,7 +506,15 @@
     "search_placeholder": "File name...",
     "view_label": "View",
     "view_tree": "Tree",
-    "view_list": "List"
+    "view_list": "List",
+    "preview_title": "Preview: {{path}}",
+    "preview_close": "Close preview",
+    "preview_show_all": "Show all {{count}} lines",
+    "preview_truncated": "Only the beginning of this file is shown. Download it to see the rest.",
+    "preview_not_text": "This file is not text. Download it to open it in the right program.",
+    "preview_failed": "Could not read this file.",
+    "download_button": "Download",
+    "download_failed": "Could not download this file."
   },
   "auth": {
     "title": "Login",

@@ -506,7 +506,15 @@
     "search_placeholder": "Dateiname ...",
     "view_label": "Ansicht",
     "view_tree": "Baum",
-    "view_list": "Liste"
+    "view_list": "Liste",
+    "preview_title": "Vorschau: {{path}}",
+    "preview_close": "Vorschau schliessen",
+    "preview_show_all": "Alle {{count}} Zeilen anzeigen",
+    "preview_truncated": "Es wird nur der Anfang dieser Datei angezeigt. Zum Ansehen des Rests herunterladen.",
+    "preview_not_text": "Diese Datei ist kein Text. Zum Öffnen im passenden Programm herunterladen.",
+    "preview_failed": "Diese Datei konnte nicht gelesen werden.",
+    "download_button": "Herunterladen",
+    "download_failed": "Diese Datei konnte nicht heruntergeladen werden."
   },
   "auth": {
     "title": "Anmeldung",

@@ -59,3 +59,24 @@ export const listFilesQuerySchema = paginationQuerySchema.extend({
 });
 
 export type ListFilesQuery = z.infer<typeof listFilesQuerySchema>;
+
+/**
+ * A capped, text-only look at a file in the local cache.
+ *
+ * Capped on the server rather than in the browser: what an operator wants to see is
+ * whether the right program is in the right place, which the first page answers, and a
+ * viewer that streams a whole file to decide it is not text has already spent the
+ * bandwidth it was trying to save. `truncated` is what lets the UI say so rather than
+ * silently showing part of a file as if it were all of it.
+ */
+export const filePreviewSchema = z.object({
+  relPath: z.string(),
+  /** The decoded text, at most `PREVIEW_MAX_BYTES` worth. */
+  content: z.string(),
+  /** True when the file continues past what is returned here. */
+  truncated: z.boolean(),
+  /** Size of the whole file on disk, so the UI can say what it is not showing. */
+  size: z.number().int().nonnegative(),
+});
+
+export type FilePreview = z.infer<typeof filePreviewSchema>;

@@ -28,6 +28,7 @@ import {
   listConflictsQuerySchema,
   listFilesQuerySchema,
   listLocksQuerySchema,
+  filePreviewSchema,
   listLogsQuerySchema,
   listSchedulesQuerySchema,
   listVersionsQuerySchema,
@@ -336,6 +337,24 @@ export const apiContract = {
     auth: 'session-or-token',
     query: listFilesQuerySchema,
     response: paginated(fileIndexEntrySchema),
+  },
+  'files.preview': {
+    method: 'GET',
+    path: '/files/:id/preview',
+    summary: 'Read the first lines of an indexed text file from the local cache.',
+    auth: 'session',
+    params: idParams,
+    response: filePreviewSchema,
+  },
+  'files.download': {
+    method: 'GET',
+    path: '/files/:id/download',
+    summary: 'Download an indexed file from the local cache.',
+    auth: 'session',
+    params: idParams,
+    response: z.unknown(),
+    produces: 'binary',
+    unenveloped: true,
   },
 
   // -------------------------------------------------------------------------

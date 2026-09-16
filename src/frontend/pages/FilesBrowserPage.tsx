@@ -6,6 +6,7 @@ import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Spinner } from '../components/ui/Spinner';
 import { useApiQuery } from '../hooks/useApi';
+import { ApiError, api } from '../lib/api-client';
 import { FilePreview } from '../components/FilePreview';
 import { FileTree } from '../components/FileTree';
 import { SearchBar } from '../components/SearchBar';
@@ -72,6 +73,36 @@ export function FilesBrowserPage(): JSX.Element {
   });
   const [selectedFile, setSelectedFile] = useState<FileIndexEntry | undefined>();
   const [previewFile, setPreviewFile] = useState<FileIndexEntry | undefined>();
+  const [downloadingId, setDownloadingId] = useState<number | undefined>();
+  const [downloadError, setDownloadError] = useState<string | undefined>();
+
+  /**
+   * Fetches the bytes and hands them to the browser as a save.
+   *
+   * Through the API client rather than a plain link, because the endpoint needs the
+   * session cookie *and* returns an error envelope when it fails — a bare `<a download>`
+   * would cheerfully save a 404's JSON body under the program's name, which is the kind
+   * of file that is discovered much later, on a machine.
+   */
+  const download = async (file: FileIndexEntry): Promise<void> => {
+    setDownloadingId(file.id);
+    setDownloadError(undefined);
+    try {
+      const blob = await api('files.download', { params: { id: file.id } });
+      const url = URL.createObjectURL(blob as Blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = file.relPath.split('/').pop() ?? 'file';
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      setDownloadError(err instanceof ApiError ? err.message : t('download_failed'));
+    } finally {
+      setDownloadingId(undefined);
+    }
+  };
 
   // Fetch files
   const files = useApiQuery(
@@ -299,9 +330,27 @@ export function FilesBrowserPage(): JSX.Element {
 
               {!selectedFile.isDir && (
                 <>
-                  <Button size="sm" onClick={() => setPreviewFile(selectedFile)} className="w-full">
-                    {t('preview_button')}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => setPreviewFile(selectedFile)}
+                      className="flex-1"
+                    >
+                      {t('preview_button')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={downloadingId === selectedFile.id}
+                      onClick={() => void download(selectedFile)}
+                      className="flex-1"
+                    >
+                      {t('download_button')}
+                    </Button>
+                  </div>
+                  {downloadError !== undefined && (
+                    <p className="text-xs text-status-error">{downloadError}</p>
+                  )}
 
                   {previewFile && (
                     <FilePreview file={previewFile} onClose={() => setPreviewFile(undefined)} />

@@ -39,6 +39,8 @@ const SPEC_ENDPOINTS = [
   'DELETE /shares/:id',
   'POST /shares/:id/:action',
   'GET /files',
+  'GET /files/:id/preview',
+  'GET /files/:id/download',
   'GET /locks',
   'POST /locks',
   'DELETE /locks/:id',
@@ -215,6 +217,7 @@ describe('API contract', () => {
           'metrics.prtg',
           'versions.download',
           'certificates.download',
+          'files.download',
         ].sort(),
       );
     });
