@@ -73,13 +73,13 @@
     "no_locks_message": "Keine aktiven Sperren",
     "no_locks_description": "Dateien, die von einer TNC oder einem Operator gesperrt werden, werden hier angezeigt.",
     "recent_events": "Aktuelle Ereignisse",
-    "event_bus": "Live vom Event-Bus der Brücke",
     "no_events": "Noch keine Ereignisse",
     "no_events_description": "Synchronisierungs-, Sperr- und Statusereignisse werden hier angezeigt.",
     "table_path": "Pfad",
     "table_origin": "Ursprung",
     "table_owner": "Besitzer",
-    "table_acquired": "Erworben"
+    "table_acquired": "Erworben",
+    "event_log": "Die neuesten Einträge aus dem Protokoll"
   },
   "config": {
     "title": "Konfiguration",

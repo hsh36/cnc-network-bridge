@@ -226,3 +226,103 @@ describe('logs', () => {
     expect(res.body.data.total).toBe(0);
   });
 });
+
+/**
+ * These three fields were literals — `reachable: false`, and two zeroes — long after the
+ * subsystems behind them existed. The dashboard read "Server link: offline" on an
+ * appliance that was syncing, beside a throughput of zero and a monitoring page drawing
+ * real traffic from the same table.
+ */
+describe('status reports what the appliance actually knows', () => {
+  function addShare(name: string, status: 'idle' | 'offline', lastError: string | null): void {
+    db.run(
+      `INSERT INTO shares (name, enabled, server_unc, mount_point, cache_path,
+                           smb_domain, smb_user, smb_version, smb_seal, conflict_mode,
+                           exclude_patterns, scan_interval_ms, bandwidth_limit_kbps,
+                           max_file_size_mb, read_only, failover_read_only, tnc_guest_ok,
+                           tnc_user, status, last_scan_at, last_error, created_at, updated_at)
+       VALUES (@name, 1, @unc, @mount, @cache, NULL, NULL, '3.1.1', 1, 'last_write_wins',
+               '[]', 15000, NULL, 512, 0, 0, 0, NULL, @status, NULL, @lastError,
+               unixepoch(), unixepoch())`,
+      {
+        name,
+        unc: `//fileserver/${name}`,
+        mount: `/mnt/tnc-server/${name}`,
+        cache: `/srv/tnc/${name}`,
+        status,
+        lastError,
+      },
+    );
+  }
+
+  function sample(metric: string, ts: number, value: number): void {
+    db.run(
+      `INSERT INTO metrics_samples (ts, metric, share_id, value)
+       VALUES (@ts, @metric, 0, @value)`,
+      { ts, metric, value },
+    );
+  }
+
+  it('calls the link up when a share can reach its server', async () => {
+    addShare('programs', 'idle', null);
+    const { agent } = await loginAgent();
+
+    const res = await agent.get('/api/v1/status').expect(200);
+    expect(res.body.data.serverLink.reachable).toBe(true);
+  });
+
+  it('calls it down only when every enabled share is down', async () => {
+    // One share offline out of two is a per-share problem the share list already shows.
+    addShare('programs', 'offline', 'mount timed out');
+    addShare('tools', 'idle', null);
+    const { agent } = await loginAgent();
+
+    expect((await agent.get('/api/v1/status')).body.data.serverLink.reachable).toBe(true);
+
+    db.run("UPDATE shares SET status = 'offline' WHERE name = 'tools'");
+    const down = await agent.get('/api/v1/status').expect(200);
+    expect(down.body.data.serverLink.reachable).toBe(false);
+    expect(down.body.data.serverLink.lastError).toBe('mount timed out');
+  });
+
+  it('explains an appliance with nothing configured rather than just saying offline', async () => {
+    const { agent } = await loginAgent();
+
+    const res = await agent.get('/api/v1/status').expect(200);
+    expect(res.body.data.serverLink.reachable).toBe(false);
+    expect(res.body.data.serverLink.lastError).toMatch(/no server to reach/);
+  });
+
+  it('differentiates the byte counters into a rate', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    sample('sync.bytes_in', now - 10, 1_000);
+    sample('sync.bytes_in', now, 11_000);
+    sample('sync.bytes_out', now - 10, 500);
+    sample('sync.bytes_out', now, 2_500);
+    const { agent } = await loginAgent();
+
+    const totals = (await agent.get('/api/v1/status').expect(200)).body.data.totals;
+    expect(totals.bytesInPerSec).toBe(1_000);
+    expect(totals.bytesOutPerSec).toBe(200);
+  });
+
+  it('reports zero rather than a spike when the counter was reset', async () => {
+    // A restart rebuilds the registry, so the next sample is smaller than the last. The
+    // difference is negative, and a negative rate would draw a spike pointing backwards.
+    const now = Math.floor(Date.now() / 1000);
+    sample('sync.bytes_in', now - 10, 900_000);
+    sample('sync.bytes_in', now, 12);
+    const { agent } = await loginAgent();
+
+    const totals = (await agent.get('/api/v1/status').expect(200)).body.data.totals;
+    expect(totals.bytesInPerSec).toBe(0);
+  });
+
+  it('reports zero before there is a second sample to differentiate against', async () => {
+    sample('sync.bytes_in', Math.floor(Date.now() / 1000), 5_000);
+    const { agent } = await loginAgent();
+
+    const totals = (await agent.get('/api/v1/status').expect(200)).body.data.totals;
+    expect(totals.bytesInPerSec).toBe(0);
+  });
+});

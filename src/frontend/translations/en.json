@@ -73,13 +73,13 @@
     "no_locks_message": "No active locks",
     "no_locks_description": "Files locked by a TNC or an operator appear here.",
     "recent_events": "Recent events",
-    "event_bus": "Live from the bridge's event bus",
     "no_events": "No events yet",
     "no_events_description": "Sync, lock and status events will appear here as they happen.",
     "table_path": "Path",
     "table_origin": "Origin",
     "table_owner": "Owner",
-    "table_acquired": "Acquired"
+    "table_acquired": "Acquired",
+    "event_log": "The most recent entries from the log"
   },
   "config": {
     "title": "Configuration",

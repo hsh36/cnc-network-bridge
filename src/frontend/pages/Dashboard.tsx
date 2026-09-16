@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Badge, type BadgeTone } from '../components/ui/Badge';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -56,6 +57,24 @@ export function Dashboard(): JSX.Element {
   const system = useApiQuery('system.get', {}, { pollMs: 15_000 });
   const locks = useApiQuery('locks.list', { query: {} }, { pollMs: 10_000 });
   const sse = useSSE({ types: ['status', 'lock', 'sync.progress', 'failover', 'conflict'] });
+  /*
+    `info` and above, so the list is what happened rather than everything that was traced.
+
+    It polls slowly as well as refreshing on an event: an event is a hint that something
+    is new, not a guarantee that one will arrive — the stream may be down, or the entry
+    may come from a job that publishes nothing.
+  */
+  const events = useApiQuery(
+    'logs.list',
+    { query: { limit: 20, offset: 0, level: 'info' } },
+    { pollMs: 60_000 },
+  );
+  const refreshEvents = events.refresh;
+  useEffect(() => {
+    if (sse.latest !== undefined) {
+      refreshEvents();
+    }
+  }, [sse.latest, refreshEvents]);
 
   if (status.loading && status.data === undefined) {
     return <FullPageSpinner />;
@@ -63,6 +82,7 @@ export function Dashboard(): JSX.Element {
 
   const data = status.data;
   const disk = system.data?.disks[0];
+  const recentEvents = events.data?.items ?? [];
   const lockColumns = getLockColumns(t);
 
   const getConnectionStatus = (): string => {
@@ -167,23 +187,36 @@ export function Dashboard(): JSX.Element {
         )}
       </Card>
 
+      {/*
+        Read from the log, not from the stream.
+
+        This card used to render `sse.events`, which is whatever arrived while the page
+        happened to be open. Nothing was stored, so an operator who opened the dashboard
+        after an update saw an empty list and concluded the update had not run — the one
+        moment the card exists for is the one it could never cover.
+
+        The log is where every one of these events is already recorded, so the list is a
+        query against it and an incoming event only triggers a refresh. Same shape as the
+        update status: one source of truth, and a dropped stream costs liveness rather
+        than correctness.
+      */}
       <Card>
-        <CardHeader title={t('recent_events')} subtitle={t('event_bus')} />
+        <CardHeader title={t('recent_events')} subtitle={t('event_log')} />
         <CardBody className="max-h-72 overflow-y-auto p-0">
-          {sse.events.length === 0 ? (
+          {recentEvents.length === 0 ? (
             <EmptyState title={t('no_events')} description={t('no_events_description')} />
           ) : (
             <ul className="divide-y divide-border text-sm dark:divide-border-dark">
-              {[...sse.events].reverse().map((event, i) => (
-                <li
-                  key={`${event.type}-${event.ts}-${i}`}
-                  className="flex items-center justify-between gap-3 px-4 py-2"
-                >
-                  <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
-                    {event.type}
+              {recentEvents.map((entry) => (
+                <li key={entry.id} className="flex items-start justify-between gap-3 px-4 py-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                      {entry.source}
+                    </span>{' '}
+                    <span className="text-slate-700 dark:text-slate-300">{entry.message}</span>
                   </span>
-                  <span className="text-xs text-slate-400 dark:text-slate-500">
-                    {new Date(event.ts).toLocaleTimeString()}
+                  <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">
+                    {new Date(entry.ts).toLocaleTimeString()}
                   </span>
                 </li>
               ))}
