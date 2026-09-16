@@ -135,7 +135,7 @@
     "scan_interval": "Scan interval (ms)",
     "concurrency": "Concurrency",
     "exclude_patterns": "Exclude patterns (one per line)",
-    "protect_deletes": "Never auto-propagate deletes",
+    "protect_deletes": "Hold deletions back instead of carrying them across",
     "failover_readonly": "Drop to read-only when the server is unreachable",
     "enable_locking": "Enable file locking",
     "server_projection": "Server projection mode",
@@ -252,7 +252,8 @@
     "internet_access_hint": "Off by default, and it should normally stay off: a CNC control runs an operating system that no longer receives security fixes. Turn it on only for a specific need, such as a licence check or a vendor update server.",
     "update_schedule": "Update schedule",
     "allow_beta": "Also install beta versions",
-    "allow_beta_hint": "Off means only releases declared stable are offered."
+    "allow_beta_hint": "Off means only releases declared stable are offered.",
+    "protect_deletes_hint": "Off means the bridge behaves like the server share mounted directly: a program deleted on either side is deleted on both. The removed copy is kept in Versions either way."
   },
   "locks": {
     "title": "Locks & Conflicts",

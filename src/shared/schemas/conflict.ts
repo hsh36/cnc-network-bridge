@@ -3,6 +3,7 @@ import { conflictModeSchema } from './config';
 import {
   entityIdSchema,
   paginationQuerySchema,
+  queryBooleanSchema,
   relPathSchema,
   unixMillisSchema,
   unixSecondsSchema,
@@ -39,7 +40,7 @@ export type Conflict = z.infer<typeof conflictSchema>;
 
 export const listConflictsQuerySchema = paginationQuerySchema.extend({
   share: z.coerce.number().int().positive().optional(),
-  acknowledged: z.coerce.boolean().optional(),
+  acknowledged: queryBooleanSchema.optional(),
 });
 
 export type ListConflictsQuery = z.infer<typeof listConflictsQuerySchema>;

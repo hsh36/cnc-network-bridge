@@ -135,7 +135,7 @@
     "scan_interval": "Scan-Intervall (ms)",
     "concurrency": "Parallelität",
     "exclude_patterns": "Ausschlussmuster (eine pro Zeile)",
-    "protect_deletes": "Löschungen niemals automatisch propagieren",
+    "protect_deletes": "Löschungen zurückhalten statt sie zu übertragen",
     "failover_readonly": "Auf Schreibschutz wechseln, wenn Server nicht erreichbar ist",
     "enable_locking": "Dateisperrung aktivieren",
     "server_projection": "Server-Projektionsmodus",
@@ -252,7 +252,8 @@
     "internet_access_hint": "Standardmässig aus, und das sollte es normalerweise bleiben: eine CNC-Steuerung läuft auf einem Betriebssystem, das keine Sicherheitsupdates mehr erhält. Nur für einen konkreten Bedarf einschalten, etwa eine Lizenzprüfung oder einen Update-Server des Herstellers.",
     "update_schedule": "Update-Zeitplan",
     "allow_beta": "Auch Beta-Versionen installieren",
-    "allow_beta_hint": "Ausgeschaltet werden nur als stabil deklarierte Ausgaben angeboten."
+    "allow_beta_hint": "Ausgeschaltet werden nur als stabil deklarierte Ausgaben angeboten.",
+    "protect_deletes_hint": "Ausgeschaltet verhält sich die Bridge wie der direkt eingebundene Server-Share: ein Programm, das auf einer Seite gelöscht wird, ist auf beiden weg. Die entfernte Fassung bleibt so oder so in den Versionen."
   },
   "locks": {
     "title": "Dateisperren",

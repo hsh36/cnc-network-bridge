@@ -83,7 +83,7 @@ export interface DiffConfig {
 export const DEFAULT_DIFF_CONFIG: Omit<DiffConfig, 'relPath'> = {
   conflictMode: 'last_write_wins',
   mtimeToleranceMs: 2_000,
-  protectDeletes: true,
+  protectDeletes: false,
   maxFileSizeBytes: 512 * 1024 * 1024,
   excluded: false,
   locked: false,

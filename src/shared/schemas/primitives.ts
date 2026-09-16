@@ -135,6 +135,21 @@ export const globPatternSchema = z
 export const percentSchema = z.number().min(0).max(100);
 
 /**
+ * A boolean that arrives as text, the way every query-string parameter does.
+ *
+ * `z.coerce.boolean()` looks like the obvious tool and is a trap: it is `Boolean(value)`,
+ * and every non-empty string is true — including `"false"`. Any filter phrased as "give
+ * me only the ones that are *not*" therefore returned everything, silently and with a
+ * plausible-looking result.
+ *
+ * That is not hypothetical. The Locks page asked for `includeReleased=false`, got every
+ * lock ever taken, and displayed twelve released locks as the twelve currently held.
+ */
+export const queryBooleanSchema = z
+  .union([z.boolean(), z.enum(['true', 'false', '1', '0'])])
+  .transform((value) => value === true || value === 'true' || value === '1');
+
+/**
  * A secret as it crosses the API boundary.
  *
  * Reads always emit {@link SECRET_SENTINEL}. Writes accept the sentinel to mean

@@ -810,9 +810,12 @@ describe('purity', () => {
     expect(base).toEqual(side(10, 100, h('a')));
   });
 
-  it('defaults to last_write_wins with deletes protected', () => {
+  it('defaults to last_write_wins, and to carrying a deletion across', () => {
+    // A deletion propagates because the bridge is meant to behave like the server share
+    // mounted directly, where deleting a program deletes it. Holding the deletion back
+    // made the file reappear, which reads as the bridge refusing an instruction.
     expect(DEFAULT_DIFF_CONFIG.conflictMode).toBe('last_write_wins');
-    expect(DEFAULT_DIFF_CONFIG.protectDeletes).toBe(true);
+    expect(DEFAULT_DIFF_CONFIG.protectDeletes).toBe(false);
     expect(DEFAULT_DIFF_CONFIG.mtimeToleranceMs).toBe(2_000);
   });
 });

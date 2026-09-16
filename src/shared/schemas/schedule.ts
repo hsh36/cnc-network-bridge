@@ -4,6 +4,7 @@ import {
   entityIdSchema,
   globPatternSchema,
   paginationQuerySchema,
+  queryBooleanSchema,
   unixSecondsSchema,
 } from './primitives';
 
@@ -82,7 +83,7 @@ export const updateScheduleRequestSchema = z
 
 export const listSchedulesQuerySchema = paginationQuerySchema.extend({
   kind: scheduleKindSchema.optional(),
-  enabled: z.coerce.boolean().optional(),
+  enabled: queryBooleanSchema.optional(),
 });
 
 /**

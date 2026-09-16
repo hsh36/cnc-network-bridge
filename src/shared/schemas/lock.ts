@@ -4,6 +4,7 @@ import {
   entityIdSchema,
   ipAddressSchema,
   paginationQuerySchema,
+  queryBooleanSchema,
   relPathSchema,
   unixSecondsSchema,
 } from './primitives';
@@ -58,7 +59,7 @@ export const listLocksQuerySchema = paginationQuerySchema.extend({
   share: z.coerce.number().int().positive().optional(),
   origin: lockOriginSchema.optional(),
   /** Include locks that have already been released. Defaults to active locks only. */
-  includeReleased: z.coerce.boolean().default(false),
+  includeReleased: queryBooleanSchema.default(false),
 });
 
 export type ListLocksQuery = z.infer<typeof listLocksQuerySchema>;

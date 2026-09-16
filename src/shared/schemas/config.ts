@@ -413,8 +413,21 @@ export const syncConfigSchema = z.object({
   scanIntervalMs: z.number().int().min(1000).max(600_000).default(15_000),
   concurrency: z.number().int().min(1).max(32).default(4),
   bandwidthLimitKbps: z.number().int().positive().nullable().default(null),
-  /** When set, a deletion is never propagated automatically — it is surfaced for review. */
-  protectDeletes: z.boolean().default(true),
+  /**
+   * Whether a deletion is held back instead of being carried to the other side.
+   *
+   * Off by default, because the bridge's promise is that a control sees the server share
+   * the way it would if it had mounted the server itself. On a direct mount, deleting a
+   * program deletes it. With this on, the bridge instead *restored* the file — an
+   * operator deleted a program, watched it reappear, and had no way to tell whether the
+   * bridge or a colleague had put it back.
+   *
+   * Turning it on is still a defensible choice for a shop that would rather explain a
+   * stale file than a missing one. Either way the losing copy is captured into the
+   * version store before anything is removed, so a deletion is recoverable — which is
+   * more than the direct mount it imitates can say.
+   */
+  protectDeletes: z.boolean().default(false),
   excludePatterns: z
     .array(globPatternSchema)
     .max(200)

@@ -181,15 +181,18 @@ function SyncSection(): JSX.Element {
         />
       </div>
 
-      <Checkbox
-        id="protectDeletes"
-        label={t('protect_deletes')}
-        checked={form.protectDeletes}
-        onChange={(e) => {
-          setForm({ ...form, protectDeletes: e.target.checked });
-          setIsDirty(true);
-        }}
-      />
+      <div className="flex flex-col gap-1">
+        <Checkbox
+          id="protectDeletes"
+          label={t('protect_deletes')}
+          checked={form.protectDeletes}
+          onChange={(e) => {
+            setForm({ ...form, protectDeletes: e.target.checked });
+            setIsDirty(true);
+          }}
+        />
+        <p className="text-xs text-slate-500 dark:text-slate-400">{t('protect_deletes_hint')}</p>
+      </div>
 
       <Checkbox
         id="failoverReadOnly"

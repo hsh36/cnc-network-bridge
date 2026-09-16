@@ -3,6 +3,7 @@ import {
   createShareRequestSchema,
   bridgeEventSchema,
   fileIndexEntrySchema,
+  listLocksQuerySchema,
   loginRequestSchema,
   networkConfigSchema,
   relPathSchema,
@@ -23,7 +24,7 @@ describe('configuration defaults', () => {
       scanIntervalMs: 15_000,
       concurrency: 4,
       bandwidthLimitKbps: null,
-      protectDeletes: true,
+      protectDeletes: false,
       excludePatterns: ['**/.DS_Store', '**/Thumbs.db', '**/~$*', '**/.tnc-tmp-*'],
       failoverReadOnly: true,
       maxFileSizeMb: 512,
@@ -58,6 +59,20 @@ describe('configuration defaults', () => {
       firewallDefault: 'allow',
       tlsMin: 'TLSv1.2',
     });
+  });
+
+  it('reads a query-string boolean by its text, not by its truthiness', () => {
+    // `z.coerce.boolean()` is `Boolean(value)`, so the string "false" came back as true
+    // and every "only the ones that are not" filter returned everything.
+    expect(listLocksQuerySchema.parse({ includeReleased: 'false' }).includeReleased).toBe(false);
+    expect(listLocksQuerySchema.parse({ includeReleased: 'true' }).includeReleased).toBe(true);
+    expect(listLocksQuerySchema.parse({ includeReleased: '0' }).includeReleased).toBe(false);
+    expect(listLocksQuerySchema.parse({ includeReleased: '1' }).includeReleased).toBe(true);
+    expect(listLocksQuerySchema.parse({}).includeReleased).toBe(false);
+  });
+
+  it('refuses a query-string boolean it cannot read, rather than guessing', () => {
+    expect(() => listLocksQuerySchema.parse({ includeReleased: 'yes' })).toThrow();
   });
 
   it('matches §6 for the updates section', () => {

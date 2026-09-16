@@ -97,6 +97,135 @@ async function loginAgent(): Promise<AuthedAgent> {
   return { agent, csrf };
 }
 
+interface LockListBody {
+  data: { items: { id: number; relPath: string; releasedAt: number | null }[]; total: number };
+}
+
+/** A share to hang locks off. The lock tables key on `share_id`, nothing else. */
+function seedShare(): number {
+  db.run(
+    `INSERT INTO shares (name, server_unc, mount_point, cache_path, enabled, conflict_mode,
+                         created_at, updated_at)
+       VALUES ('test', '//server/test', '/mnt/test', '/srv/test', 1, 'last_write_wins',
+               unixepoch(), unixepoch())`,
+  );
+  return db.pluck<number>('SELECT id FROM shares') ?? 0;
+}
+
+/**
+ * The listing and the release button, which had no coverage at all.
+ *
+ * The Locks page is the one screen an operator reaches for when a control has crashed
+ * with a program open — the lock outlives the machine that took it, and the only way
+ * back is this button. It was never exercised end to end: the manager had tests, the
+ * route had none, and the query feeding the page returned the wrong rows entirely.
+ */
+describe('GET /locks', () => {
+  it('returns only the locks that are actually held', async () => {
+    const shareId = seedShare();
+    const held = ctx.locks.acquire({ shareId, relPath: 'HELD.H', origin: 'manual' });
+    const gone = ctx.locks.acquire({ shareId, relPath: 'GONE.H', origin: 'manual' });
+    ctx.locks.release(gone.id);
+
+    const { agent } = await loginAgent();
+    const res = await agent.get('/api/v1/locks').expect(200);
+
+    // The defect this pins: `includeReleased` defaults to false, but arrived through
+    // `z.coerce.boolean()` — and `Boolean("false")` is true. Every released lock came
+    // back, and twelve finished locks were displayed as twelve active ones.
+    const body = res.body as LockListBody;
+    expect(body.data.items.map((l) => l.relPath)).toEqual(['HELD.H']);
+    expect(body.data.total).toBe(1);
+    expect(held.releasedAt).toBeNull();
+  });
+
+  it('returns the released ones too when they are asked for by name', async () => {
+    const shareId = seedShare();
+    const gone = ctx.locks.acquire({ shareId, relPath: 'GONE.H', origin: 'manual' });
+    ctx.locks.release(gone.id);
+
+    const { agent } = await loginAgent();
+    const res = await agent.get('/api/v1/locks?includeReleased=true').expect(200);
+
+    expect((res.body as LockListBody).data.items).toHaveLength(1);
+  });
+
+  it('reads "false" as false, which is the whole point', async () => {
+    const shareId = seedShare();
+    ctx.locks.release(ctx.locks.acquire({ shareId, relPath: 'GONE.H', origin: 'manual' }).id);
+
+    const { agent } = await loginAgent();
+    const res = await agent.get('/api/v1/locks?includeReleased=false').expect(200);
+
+    expect((res.body as LockListBody).data.items).toHaveLength(0);
+  });
+
+  it('requires authentication', async () => {
+    await request(app).get('/api/v1/locks').expect(401);
+  });
+});
+
+describe('DELETE /locks/:id', () => {
+  it('releases a lock that a crashed control left behind', async () => {
+    const shareId = seedShare();
+    const lock = ctx.locks.acquire({
+      shareId,
+      relPath: 'CRASHED.H',
+      origin: 'tnc',
+      tncIp: '172.16.37.42',
+    });
+
+    const { agent, csrf } = await loginAgent();
+    await agent
+      .delete(`/api/v1/locks/${String(lock.id)}`)
+      .set('x-csrf-token', csrf)
+      .expect(200);
+
+    expect(ctx.locks.getActive(shareId, 'CRASHED.H')).toBeUndefined();
+    const after = await agent.get('/api/v1/locks').expect(200);
+    expect((after.body as LockListBody).data.items).toHaveLength(0);
+  });
+
+  it('keeps the released lock in the record rather than deleting the row', async () => {
+    // A force-release is an intervention, and the history is the only place it shows.
+    const shareId = seedShare();
+    const lock = ctx.locks.acquire({ shareId, relPath: 'CRASHED.H', origin: 'tnc' });
+
+    const { agent, csrf } = await loginAgent();
+    await agent
+      .delete(`/api/v1/locks/${String(lock.id)}`)
+      .set('x-csrf-token', csrf)
+      .expect(200);
+
+    const res = await agent.get('/api/v1/locks?includeReleased=true').expect(200);
+    const items = (res.body as LockListBody).data.items;
+    expect(items).toHaveLength(1);
+    expect(items[0]?.releasedAt).not.toBeNull();
+  });
+
+  it('answers 404 for a lock that is already gone, instead of pretending', async () => {
+    const shareId = seedShare();
+    const lock = ctx.locks.acquire({ shareId, relPath: 'GONE.H', origin: 'manual' });
+    ctx.locks.release(lock.id);
+
+    const { agent, csrf } = await loginAgent();
+    await agent
+      .delete(`/api/v1/locks/${String(lock.id)}`)
+      .set('x-csrf-token', csrf)
+      .expect(404);
+  });
+
+  it('refuses without a CSRF token', async () => {
+    const shareId = seedShare();
+    const lock = ctx.locks.acquire({ shareId, relPath: 'HELD.H', origin: 'manual' });
+
+    const { agent } = await loginAgent();
+    await agent.delete(`/api/v1/locks/${String(lock.id)}`).expect(403);
+
+    expect(ctx.locks.getActive(shareId, 'HELD.H')).toBeDefined();
+  });
+});
+
 describe('GET /locks/schedule/preview', () => {
   it('requires authentication', async () => {
     const res = await request(app).get('/api/v1/locks/schedule/preview');
