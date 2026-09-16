@@ -5,16 +5,15 @@ import { Layout } from './components/Layout';
 import { FullPageSpinner } from './components/ui/Spinner';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { SetupProvider, useSetupStatus } from './hooks/useSetupStatus';
-import { ConfigPage } from './pages/ConfigPage';
 import { NetworkPage } from './pages/NetworkPage';
 import { Dashboard } from './pages/Dashboard';
 import { FilesBrowserPage } from './pages/FilesBrowserPage';
 import { LocksConflictsPage } from './pages/LocksConflictsPage';
 import { Login } from './pages/Login';
 import { Logs } from './pages/Logs';
-import { Machines } from './pages/Machines';
 import { MonitoringPage } from './pages/MonitoringPage';
-import { Scheduling } from './pages/Scheduling';
+import { SecurityPage } from './pages/SecurityPage';
+import { SharesPage } from './pages/SharesPage';
 import { Setup } from './pages/Setup';
 import { SystemUpdates } from './pages/SystemUpdates';
 import { Versions } from './pages/Versions';
@@ -87,10 +86,10 @@ function AppRoutes(): JSX.Element {
         }
       />
       <Route
-        path="/machines"
+        path="/shares"
         element={
           <RequireAuth>
-            <Machines />
+            <SharesPage />
           </RequireAuth>
         }
       />
@@ -119,14 +118,6 @@ function AppRoutes(): JSX.Element {
         }
       />
       <Route
-        path="/scheduling"
-        element={
-          <RequireAuth>
-            <Scheduling />
-          </RequireAuth>
-        }
-      />
-      <Route
         path="/network"
         element={
           <RequireAuth>
@@ -135,10 +126,10 @@ function AppRoutes(): JSX.Element {
         }
       />
       <Route
-        path="/config"
+        path="/security"
         element={
           <RequireAuth>
-            <ConfigPage />
+            <SecurityPage />
           </RequireAuth>
         }
       />

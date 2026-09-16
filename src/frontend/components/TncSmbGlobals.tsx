@@ -16,10 +16,9 @@ import { Checkbox, Input, Select } from './ui/Input';
  * share dialog would mean four shares each showing a setting that silently applies to
  * all of them, and whichever was saved last would win.
  *
- * So they sit in the TNC zone of the network page instead, next to the SMB server name,
- * which is the other thing that describes the machine-facing side as a whole. The share
- * dialog keeps only what is genuinely per share: who may connect to it, and with what
- * password.
+ * So they sit below the share list instead, where the rest of what cannot be per share
+ * lives. The share dialog keeps only what is genuinely per share: who may connect to it,
+ * and with what password.
  *
  * Everything here describes the TNC leg, so it is folded away by default — a shop that
  * accepts the defaults never needs to open it.

@@ -13,7 +13,6 @@ import {
   DualNicServerIcon,
   VlanTrunkIcon,
 } from '../components/NetworkModeIcons';
-import { TncSmbGlobals } from '../components/TncSmbGlobals';
 import { Button } from '../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Checkbox, Input, Select } from '../components/ui/Input';
@@ -524,10 +523,6 @@ function InterfaceSections({ mode }: { readonly mode: NetworkMode }): JSX.Elemen
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">{t('apply_tnc_hint')}</p>
           {noticeFor('tnc')}
-
-          {/* The Samba globals live here rather than in the share dialog, because Samba
-              reads one value per server and not one per stanza. See TncSmbGlobals. */}
-          <TncSmbGlobals />
         </section>
       </div>
 

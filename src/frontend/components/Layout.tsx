@@ -12,22 +12,32 @@ import { cn } from './ui/cn';
 /**
  * `labelKey` rather than a label: the menu is rebuilt on every render, so resolving the
  * string here would freeze it in whichever language was active when this module loaded.
+ *
+ * Ordered by how often an operator needs it, not alphabetically: what the bridge is
+ * serving, then what is happening on it, then what is being kept, then how it is set up.
+ *
+ * There is no Configuration entry. There was, holding eight tabs of settings that each
+ * belonged to a page of their own — someone wanting to change the log level went to the
+ * log page, found nothing, and had to know that a second place existed. Each of those
+ * tabs now sits under the thing it governs, which is also the thing whose behaviour
+ * explains it. Scheduling and Machines are gone outright: schedules are edited where the
+ * job they run is configured, and the machines list only ever restated what the locks
+ * and log pages already said, per connection and with more detail.
  */
 const NAV_ITEMS = [
   { to: '/', labelKey: 'dashboard', end: true },
-  { to: '/locks', labelKey: 'locks' },
-  { to: '/machines', labelKey: 'machines' },
+  { to: '/shares', labelKey: 'shares' },
   { to: '/files', labelKey: 'files' },
-  { to: '/monitoring', labelKey: 'monitoring' },
+  { to: '/locks', labelKey: 'locks' },
   { to: '/versions', labelKey: 'versions' },
-  { to: '/scheduling', labelKey: 'scheduling' },
+  { to: '/monitoring', labelKey: 'monitoring' },
+  { to: '/logs', labelKey: 'logs' },
   // Its own entry rather than a tab in Configuration: it is the first page of a new
   // install, the one an operator returns to when the bridge is unreachable, and the
   // only one that can take the interface away while it is being used.
   { to: '/network', labelKey: 'network' },
+  { to: '/security', labelKey: 'security' },
   { to: '/system-updates', labelKey: 'updates' },
-  { to: '/config', labelKey: 'config' },
-  { to: '/logs', labelKey: 'logs' },
 ] as const;
 
 export function Layout({ children }: { readonly children: ReactNode }): JSX.Element {

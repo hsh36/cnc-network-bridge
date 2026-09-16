@@ -22,6 +22,8 @@ export interface UseLogsResult {
   readonly error: Error | undefined;
   readonly total: number;
   readonly live: boolean;
+  /** True while the live stream is between connections. Not an error. */
+  readonly reconnecting: boolean;
   readonly paused: boolean;
   readonly toggleLive: () => void;
   readonly togglePause: () => void;
@@ -42,9 +44,13 @@ export function useLogs(filter: LogsFilter, options: UseLogsOptions = {}): UseLo
   const [error, setError] = useState<Error>();
   const [total, setTotal] = useState(0);
   const [live, setLive] = useState(initialLive);
+  const [reconnecting, setReconnecting] = useState(false);
   const [paused, setPaused] = useState(false);
   const sourceRef = useRef<EventSource>();
   const logsRef = useRef<LogEntry[]>([]);
+  /** Set when a connection drops, so the refetch happens on a reconnect and not on the
+    first connect — where it would only duplicate the initial fetch. */
+  const droppedRef = useRef(false);
 
   // Build query string from filter
   const buildQuery = useCallback((): URLSearchParams => {
@@ -90,6 +96,7 @@ export function useLogs(filter: LogsFilter, options: UseLogsOptions = {}): UseLo
     if (!enabled || !live) {
       sourceRef.current?.close();
       sourceRef.current = undefined;
+      setReconnecting(false);
       return;
     }
 
@@ -111,16 +118,47 @@ export function useLogs(filter: LogsFilter, options: UseLogsOptions = {}): UseLo
       }
     };
 
+    /*
+      A dropped connection is not an error, and closing it here made it one.
+
+      `onerror` fires on every ordinary interruption an SSE stream has — a proxy timing
+      the idle connection out, a laptop waking up, the service restarting after an
+      update. The browser's EventSource handles all of those itself: it waits, retries,
+      and sends `Last-Event-ID` so the server can replay what was missed. Calling
+      `close()` in the handler took that away and turned each hiccup into a permanently
+      dead tail behind a red "Live stream disconnected" — which is what an operator
+      saw on a log page left open for an hour.
+
+      So the stream is left to reconnect, and only a `CLOSED` readyState — which
+      EventSource reaches when it has given up, as after an auth failure — is reported
+      as an error.
+    */
+    source.onopen = () => {
+      setError(undefined);
+      setReconnecting(false);
+      if (droppedRef.current) {
+        droppedRef.current = false;
+        // The tail missed whatever arrived while it was down, so refetch the window.
+        void refresh();
+      }
+    };
+
     source.onerror = () => {
-      setError(new Error('Live stream disconnected'));
-      source.close();
+      if (source.readyState === EventSource.CLOSED) {
+        setError(new Error('Live stream disconnected'));
+        setReconnecting(false);
+        return;
+      }
+      droppedRef.current = true;
+      setReconnecting(true);
     };
 
     return () => {
       source.close();
       sourceRef.current = undefined;
+      setReconnecting(false);
     };
-  }, [enabled, live, buildQuery, paused, maxLiveEvents]);
+  }, [enabled, live, buildQuery, paused, maxLiveEvents, refresh]);
 
   const toggleLive = useCallback(() => {
     setLive((v) => !v);
@@ -142,6 +180,7 @@ export function useLogs(filter: LogsFilter, options: UseLogsOptions = {}): UseLo
     error,
     total,
     live,
+    reconnecting,
     paused,
     toggleLive,
     togglePause,

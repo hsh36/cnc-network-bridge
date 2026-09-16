@@ -5,7 +5,7 @@ import { ActiveLocksTable } from '../components/ActiveLocksTable';
 import { ConflictDetail } from '../components/ConflictDetail';
 import { ConflictsList } from '../components/ConflictsList';
 import { ForceReleaseDialog } from '../components/ForceReleaseDialog';
-import { LockHistoryTable } from '../components/LockHistoryTable';
+import { LockingSettings } from '../components/settings/LockingSettings';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Spinner } from '../components/ui/Spinner';
@@ -15,12 +15,16 @@ import { useLocks } from '../hooks/useLocks';
 import { api, ApiError } from '../lib/api-client';
 
 /**
- * Locks & Conflicts management page (T51).
+ * Locks & Conflicts management page.
  *
- * Three tabs:
+ * Two tabs and a settings card:
  * 1. Active Locks: Real-time updates via SSE, shows who has what locked and why
- * 2. Lock History: Past locks with duration and release reason
- * 3. Conflicts: Unresolved and resolved conflicts with ability to restore losing versions
+ * 2. Conflicts: Unresolved and resolved conflicts with ability to restore losing versions
+ *
+ * There was a third tab, Lock History, and it is gone on purpose: a released lock is a
+ * thing that is over, and nobody asked a past one a question. What an operator wants
+ * from this page is who is holding a file right now and how to get it back. The log
+ * still records every lock and release for anyone who does need to look backwards.
  */
 
 export function LocksConflictsPage(): JSX.Element {
@@ -32,7 +36,6 @@ export function LocksConflictsPage(): JSX.Element {
   const locks = useLocks();
   const [releaseConfirm, setReleaseConfirm] = useState<Lock>();
   const [releasingId, setReleasingId] = useState<number>();
-  const [lockHistoryPath, setLockHistoryPath] = useState('');
 
   // Conflicts state and hooks
   const conflicts = useConflicts();
@@ -161,22 +164,6 @@ export function LocksConflictsPage(): JSX.Element {
     ),
   };
 
-  const lockHistoryTab: React.ComponentProps<typeof Tabs>['items'][0] = {
-    id: 'lock-history',
-    label: t('lock_history_tab', { count: locks.history.length }),
-    content: locks.loading ? (
-      <div className="flex justify-center py-8">
-        <Spinner />
-      </div>
-    ) : (
-      <LockHistoryTable
-        locks={locks.history}
-        onSearchChange={setLockHistoryPath}
-        searchPath={lockHistoryPath}
-      />
-    ),
-  };
-
   const unresolvedCount = conflicts.unresolved.length;
   const conflictsTab: React.ComponentProps<typeof Tabs>['items'][0] = {
     id: 'conflicts',
@@ -261,7 +248,16 @@ export function LocksConflictsPage(): JSX.Element {
       {/* Tabs */}
       <Card>
         <CardBody>
-          <Tabs items={[activeLocksTab, lockHistoryTab, conflictsTab]} />
+          <Tabs items={[activeLocksTab, conflictsTab]} />
+        </CardBody>
+      </Card>
+
+      {/* How locking behaves belongs next to what it is doing: whether it is on at all,
+        what it projects onto the server, and when it lets go. */}
+      <Card>
+        <CardHeader title={t('settings_title')} />
+        <CardBody>
+          <LockingSettings />
         </CardBody>
       </Card>
 

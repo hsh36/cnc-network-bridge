@@ -10,7 +10,8 @@ import { TemperatureChart } from '../components/TemperatureChart';
 import { ThroughputChart } from '../components/ThroughputChart';
 import { SystemInfoCard } from '../components/SystemInfoCard';
 import { TimeRangeSelector } from '../components/TimeRangeSelector';
-import { Card, CardBody } from '../components/ui/Card';
+import { MonitoringSettings } from '../components/settings/MonitoringSettings';
+import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { FullPageSpinner } from '../components/ui/Spinner';
 import { useApiQuery } from '../hooks/useApi';
 import { getTimeRangeSeconds, useMetrics } from '../hooks/useMetrics';
@@ -72,10 +73,20 @@ export function MonitoringPage(): JSX.Element {
   const seriesMemory = metricsByName.get('mem.used_pct');
   const seriesTemperature = metricsByName.get('cpu.temp');
 
-  const isLoading = metrics.loading && metrics.series.length === 0;
-  const systemLoading = systemInfo.loading && systemInfo.data === undefined;
+  /*
+    Every chart gets `chartsLoading`, not `metrics.loading`.
 
-  if (isLoading && systemLoading) {
+    `metrics.loading` goes true on each poll, so passing it straight through replaced
+    the drawn series with a spinner every cycle — a page that blinked once a minute and
+    could never be read. These three say the same thing: show the placeholder only while
+    there is nothing to draw yet, and leave the previous series standing until the next
+    one has arrived.
+  */
+  const chartsLoading = metrics.loading && metrics.series.length === 0;
+  const systemLoading = systemInfo.loading && systemInfo.data === undefined;
+  const sharesLoading = status.loading && status.data === undefined;
+
+  if (chartsLoading && systemLoading) {
     return <FullPageSpinner />;
   }
 
@@ -106,7 +117,7 @@ export function MonitoringPage(): JSX.Element {
           <ThroughputChart
             seriesIn={seriesThroughputIn}
             seriesOut={seriesThroughputOut}
-            loading={metrics.loading}
+            loading={chartsLoading}
           />
         </div>
         <div>
@@ -116,29 +127,35 @@ export function MonitoringPage(): JSX.Element {
 
       {/* Row 2: Queue Depth + Error Rate */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <QueueDepthChart series={seriesQueueDepth} loading={metrics.loading} />
-        <ErrorRateChart series={seriesErrorRate} loading={metrics.loading} />
+        <QueueDepthChart series={seriesQueueDepth} loading={chartsLoading} />
+        <ErrorRateChart series={seriesErrorRate} loading={chartsLoading} />
       </div>
 
       {/* Row 3: CPU & Memory + Temperature */}
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <CPUMemChart
-            seriesCpu={seriesCpuLoad}
-            seriesMem={seriesMemory}
-            loading={metrics.loading}
-          />
+          <CPUMemChart seriesCpu={seriesCpuLoad} seriesMem={seriesMemory} loading={chartsLoading} />
         </div>
         <div>
-          <TemperatureChart series={seriesTemperature} loading={metrics.loading} />
+          <TemperatureChart series={seriesTemperature} loading={chartsLoading} />
         </div>
       </div>
 
       {/* Row 4: Disk Usage + Share Health */}
       <div className="grid gap-4 sm:grid-cols-2">
         <DiskUsageChart systemInfo={systemInfo.data} loading={systemLoading} />
-        <ShareHealthTable shares={status.data?.shares} loading={status.loading} />
+        <ShareHealthTable shares={status.data?.shares} loading={sharesLoading} />
       </div>
+
+      {/* What the page above measures is configured here rather than on a Configuration
+        page of its own: the sample interval and the disk warning threshold only mean
+        anything next to the charts they govern. */}
+      <Card>
+        <CardHeader title={t('settings_title')} />
+        <CardBody>
+          <MonitoringSettings />
+        </CardBody>
+      </Card>
     </div>
   );
 }

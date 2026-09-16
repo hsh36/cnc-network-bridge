@@ -3,6 +3,7 @@ import { useTranslation } from '../hooks/useTranslation';
 import { LOG_SOURCES, type LogEntry, type LogLevel, type LogSource } from '../../shared';
 import { Badge, type BadgeTone } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import { LoggingSettings } from '../components/settings/LoggingSettings';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Input, Select } from '../components/ui/Input';
@@ -244,6 +245,13 @@ export function Logs(): JSX.Element {
             <Button variant="secondary" size="sm" onClick={logs.togglePause}>
               {logs.paused ? t('resume') : t('pause')}
             </Button>
+          )}
+          {/* A reconnect is a normal thing for a stream left open, so it is said quietly
+            here rather than in the error banner below. */}
+          {logs.reconnecting && (
+            <span className="self-center text-xs text-slate-500 dark:text-slate-400">
+              {t('live_reconnecting')}
+            </span>
           )}
         </div>
       </div>
@@ -539,6 +547,15 @@ export function Logs(): JSX.Element {
           </CardBody>
         </Card>
       )}
+
+      {/* Log level and retention live with the log viewer: the person who changes them
+        is the one looking at what they produce. */}
+      <Card>
+        <CardHeader title={t('settings_title')} />
+        <CardBody>
+          <LoggingSettings />
+        </CardBody>
+      </Card>
     </div>
   );
 }

@@ -5,19 +5,20 @@ import { useSSE } from './useSSE';
 
 export interface LocksState {
   readonly active: readonly Lock[];
-  readonly history: readonly Lock[];
   readonly loading: boolean;
   readonly error: ApiError | undefined;
   readonly refresh: () => Promise<void>;
 }
 
 /**
- * Manages lock lists: active locks with real-time SSE updates and lock history.
- * Active locks are refreshed both on initial load and via SSE lock events.
+ * Manages the list of active locks, refreshed on load and on every SSE lock event.
+ *
+ * It used to fetch a second page of up to 500 released locks for a history tab. The tab
+ * is gone, and so is that request: it ran again on every lock event — that is, every
+ * time a machine opened or closed a file — to fill a list nobody was looking at.
  */
 export function useLocks(): LocksState {
   const [active, setActive] = useState<Lock[]>([]);
-  const [history, setHistory] = useState<Lock[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError>();
 
@@ -28,20 +29,10 @@ export function useLocks(): LocksState {
     setLoading(true);
     setError(undefined);
     try {
-      // Fetch active locks (not released)
       const activeLocks = await api('locks.list', {
         query: { includeReleased: false, limit: 500 },
       });
-
-      // Fetch released locks for history (last 500)
-      const releasedLocks = await api('locks.list', {
-        query: { includeReleased: true, limit: 500 },
-      });
-
       setActive(activeLocks.items);
-      // History is released locks, sorted newest first
-      const historyLocks = releasedLocks.items.filter((l) => l.releasedAt !== null);
-      setHistory(historyLocks);
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         setError(err);
@@ -65,7 +56,6 @@ export function useLocks(): LocksState {
 
   return {
     active,
-    history,
     loading,
     error,
     refresh,

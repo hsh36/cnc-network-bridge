@@ -11,6 +11,7 @@ import { FilesystemSyncPorts } from './filesystem-ports';
 import { SyncOrchestrator } from './orchestrator';
 import { ShareStore } from './share-store';
 import { SqliteBaseStore } from './sqlite-base-store';
+import { TransferQueue } from './throttle';
 
 /**
  * Keeps what is running matched to what is configured.
@@ -188,6 +189,7 @@ export class SyncSupervisor {
     await chmod(share.cachePath, 0o2770);
 
     const smb = this.options.config.get('smb');
+    const sync = this.options.config.get('sync');
     const password =
       this.store.password(shareId) ??
       this.options.config.getSecret('smb.server.credentials.password');
@@ -237,7 +239,26 @@ export class SyncSupervisor {
             ? {}
             : { isMounted: () => this.options.isMounted?.(share.mountPoint) ?? true }),
         }),
-        diffConfig: { conflictMode: share.conflictMode },
+        /*
+          The share decides how conflicts end; the global section decides how the diff
+          engine judges them.
+
+          Only `conflictMode` used to be passed, so `sync.mtimeToleranceMs` and
+          `sync.protectDeletes` were settings an operator could change, save and see
+          confirmed while the engine went on using the constants in DEFAULT_DIFF_CONFIG.
+          `protectDeletes` in particular is the difference between a deletion being
+          carried across and being held back — the one switch here whose value nobody
+          would guess wrong about, and it did nothing.
+
+          The split is deliberate: what differs between shares lives on the share, what
+          describes how this bridge reads a filesystem is one value for the appliance.
+        */
+        diffConfig: {
+          conflictMode: share.conflictMode,
+          mtimeToleranceMs: sync.mtimeToleranceMs,
+          protectDeletes: sync.protectDeletes,
+        },
+        queue: new TransferQueue({ concurrency: sync.concurrency }),
       }),
       timer: undefined,
       online: false,

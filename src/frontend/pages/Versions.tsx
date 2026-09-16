@@ -3,6 +3,7 @@ import { useTranslation } from '../hooks/useTranslation';
 import { type FileVersion } from '../../shared';
 import { Badge, type BadgeTone } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import { VersioningSettings } from '../components/settings/VersioningSettings';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Input } from '../components/ui/Input';
@@ -455,6 +456,15 @@ export function Versions(): JSX.Element {
           </Card>
         </div>
       )}
+
+      {/* How many versions are kept, and for how long, is the same subject as the list
+        above: this is where an operator learns why an old one is no longer there. */}
+      <Card>
+        <CardHeader title={t('settings_title')} />
+        <CardBody>
+          <VersioningSettings />
+        </CardBody>
+      </Card>
     </div>
   );
 }
