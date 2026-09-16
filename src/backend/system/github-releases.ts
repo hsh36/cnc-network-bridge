@@ -159,7 +159,8 @@ export async function fetchLatestRelease(
       throw new UpdateCheckError(
         `GitHub answered ${String(response.status)} for ${options.repo}. ` +
           (response.status === 404
-            ? 'Check the repository name in Settings > Updates.'
+            ? 'The repository is built into this release, so this means GitHub cannot ' +
+              'see it — check that it still exists and is public.'
             : 'Try again later.'),
       );
     }

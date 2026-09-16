@@ -161,9 +161,6 @@
     "tls_1_2": "TLS 1.2",
     "tls_1_3": "TLS 1.3",
     "enable_updates": "Automatische Updates aktivieren",
-    "update_channel": "Update-Kanal",
-    "channel_stable": "Stabil",
-    "channel_beta": "Beta",
     "schedule_hint": "z.B. '0 3 * * 0' für 3 Uhr morgens am Sonntag",
     "github_hint": "Format: Besitzer/Repo",
     "auto_restart": "Automatischer Neustart nach Update",
@@ -253,7 +250,9 @@
     "internet_subtitle": "Ob eine Steuerung über diese Brücke über das LAN hinaus routen darf.",
     "internet_access": "Maschinen dürfen über die Brücke ins Internet",
     "internet_access_hint": "Standardmässig aus, und das sollte es normalerweise bleiben: eine CNC-Steuerung läuft auf einem Betriebssystem, das keine Sicherheitsupdates mehr erhält. Nur für einen konkreten Bedarf einschalten, etwa eine Lizenzprüfung oder einen Update-Server des Herstellers.",
-    "update_schedule": "Update-Zeitplan"
+    "update_schedule": "Update-Zeitplan",
+    "allow_beta": "Auch Beta-Versionen installieren",
+    "allow_beta_hint": "Ausgeschaltet werden nur als stabil deklarierte Ausgaben angeboten."
   },
   "locks": {
     "title": "Dateisperren",
@@ -557,7 +556,10 @@
     "os_phase_rebooting": "Neustart läuft",
     "os_phase_done": "Systemupdates abgeschlossen",
     "os_phase_failed": "Systemupdate fehlgeschlagen",
-    "save_button": "Speichern"
+    "save_button": "Speichern",
+    "allow_beta": "Auch Beta-Versionen installieren",
+    "allow_beta_hint": "Beta-Versionen werden zum Testen veröffentlicht, bevor eine Ausgabe als stabil gilt. Gilt für die geplante Prüfung und für \"Nach Updates suchen\" gleichermassen.",
+    "beta_badge": "Beta"
   },
   "files": {
     "title": "Datei-Browser",

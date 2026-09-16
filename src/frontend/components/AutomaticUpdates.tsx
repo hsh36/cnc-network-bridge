@@ -23,6 +23,12 @@ import { Spinner } from './ui/Spinner';
  * a rename of the repository, which is how an appliance stops updating itself without
  * anything appearing to be wrong.
  *
+ * The beta checkbox is the `updates.channel` config value, and it is one checkbox for
+ * both paths on purpose: the scheduled check and the "check now" button on this page
+ * ask the same manager, which reads the channel at check time. An appliance that
+ * installs pre-releases on a schedule but hides them from the operator pressing the
+ * button would be the worst of both.
+ *
  * OS updates are a separate section and a separate schedule rather than a checkbox on
  * this one, because they want a different cadence: the appliance can update in the
  * evening, the operating system should wait for a weekend when a reboot costs nothing.
@@ -154,6 +160,19 @@ export function AutomaticUpdates(): JSX.Element {
                   value={bridge.scheduleCron}
                   onChange={(cron) => setBridge({ ...bridge, scheduleCron: cron })}
                 />
+                <div className="flex flex-col gap-1">
+                  <Checkbox
+                    id="updatesBeta"
+                    label={t('allow_beta')}
+                    checked={bridge.channel === 'beta'}
+                    onChange={(e) =>
+                      setBridge({ ...bridge, channel: e.target.checked ? 'beta' : 'stable' })
+                    }
+                  />
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t('allow_beta_hint')}
+                  </p>
+                </div>
                 <div className="flex items-center gap-3">
                   <Button
                     size="sm"

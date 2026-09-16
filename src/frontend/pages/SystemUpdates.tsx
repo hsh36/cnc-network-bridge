@@ -91,7 +91,15 @@ export function SystemUpdates(): JSX.Element {
                 <span className="text-lg font-medium text-slate-900 dark:text-slate-100">
                   {t('version_label', { version: status.available.version })}
                 </span>
-                <Badge tone="accent">{t('available_badge')}</Badge>
+                <div className="flex items-center gap-2">
+                  {/* Say so before it is installed: on the beta channel, what is on
+                      offer may be a pre-release, and the version number alone does not
+                      show that. */}
+                  {status.available.channel === 'beta' && (
+                    <Badge tone="warn">{t('beta_badge')}</Badge>
+                  )}
+                  <Badge tone="accent">{t('available_badge')}</Badge>
+                </div>
               </div>
 
               {status.available.notes && (

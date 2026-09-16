@@ -650,19 +650,18 @@ function UpdatesSection(): JSX.Element {
         }}
       />
 
-      <Select
-        id="channel"
-        label={t('update_channel')}
-        value={form.channel}
-        onChange={(e) => {
-          setForm({ ...form, channel: e.target.value as 'stable' | 'beta' });
-          setIsDirty(true);
-        }}
-        error={errors.channel}
-      >
-        <option value="stable">{t('channel_stable')}</option>
-        <option value="beta">{t('channel_beta')}</option>
-      </Select>
+      <div className="flex flex-col gap-1">
+        <Checkbox
+          id="channel"
+          label={t('allow_beta')}
+          checked={form.channel === 'beta'}
+          onChange={(e) => {
+            setForm({ ...form, channel: e.target.checked ? 'beta' : 'stable' });
+            setIsDirty(true);
+          }}
+        />
+        <p className="text-xs text-slate-500 dark:text-slate-400">{t('allow_beta_hint')}</p>
+      </div>
 
       <div className="flex flex-col gap-1">
         <span className="text-xs font-medium text-slate-700 dark:text-slate-200">

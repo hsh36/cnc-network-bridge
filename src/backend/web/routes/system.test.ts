@@ -228,7 +228,7 @@ describe('POST /update/check', () => {
       .send({})
       .expect(200);
 
-    expect((res.body as StatusBody).data.lastError).toMatch(/Settings > Updates/);
+    expect((res.body as StatusBody).data.lastError).toMatch(/built into this release/);
     expect((res.body as StatusBody).data.lastCheckAt).not.toBeNull();
   });
 });

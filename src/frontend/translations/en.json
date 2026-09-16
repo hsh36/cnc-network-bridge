@@ -161,9 +161,6 @@
     "tls_1_2": "TLS 1.2",
     "tls_1_3": "TLS 1.3",
     "enable_updates": "Enable auto-updates",
-    "update_channel": "Update channel",
-    "channel_stable": "Stable",
-    "channel_beta": "Beta",
     "schedule_hint": "e.g., '0 3 * * 0' for 3 AM on Sundays",
     "github_hint": "Format: owner/repo",
     "auto_restart": "Auto-restart after update",
@@ -253,7 +250,9 @@
     "internet_subtitle": "Whether a control may route beyond the LAN through this bridge.",
     "internet_access": "Allow machines to reach the internet through the bridge",
     "internet_access_hint": "Off by default, and it should normally stay off: a CNC control runs an operating system that no longer receives security fixes. Turn it on only for a specific need, such as a licence check or a vendor update server.",
-    "update_schedule": "Update schedule"
+    "update_schedule": "Update schedule",
+    "allow_beta": "Also install beta versions",
+    "allow_beta_hint": "Off means only releases declared stable are offered."
   },
   "locks": {
     "title": "Locks & Conflicts",
@@ -557,7 +556,10 @@
     "os_phase_rebooting": "Rebooting",
     "os_phase_done": "System updates finished",
     "os_phase_failed": "System update failed",
-    "save_button": "Save"
+    "save_button": "Save",
+    "allow_beta": "Also install beta versions",
+    "allow_beta_hint": "Beta versions are published for testing before a release is declared stable. Applies to the scheduled check and to \"Check for updates\" alike.",
+    "beta_badge": "Beta"
   },
   "files": {
     "title": "File Browser",

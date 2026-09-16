@@ -121,17 +121,19 @@ describe('fetchLatestRelease', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('names the repository setting when GitHub answers 404', async () => {
+  it('says what a 404 means now that the repository is not a setting', async () => {
     const fetchImpl = jest.fn().mockResolvedValue(jsonResponse({ message: 'Not Found' }, 404));
-    // The operator's most likely mistake is a typo in the repo name, so the message
-    // has to point at the field rather than say "request failed".
+    // The message used to send the operator to a field they could correct. There is no
+    // such field any more, so it has to say that the repository is fixed and that
+    // GitHub is the side with the problem — otherwise it sends them hunting for a
+    // setting that does not exist.
     await expect(
       fetchLatestRelease({
         repo: 'hsh36/nope',
         channel: 'stable',
         fetchImpl: fetchImpl,
       }),
-    ).rejects.toThrow(/Settings > Updates/);
+    ).rejects.toThrow(/built into this release/);
   });
 
   it('wraps a transport failure in an UpdateCheckError the UI can display', async () => {
