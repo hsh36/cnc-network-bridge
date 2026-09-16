@@ -8,11 +8,7 @@ import {
   type NetworkMode,
   type NetworkSide,
 } from '../../shared';
-import {
-  DualNicBridgeIcon,
-  DualNicServerIcon,
-  VlanTrunkIcon,
-} from '../components/NetworkModeIcons';
+import { ExistingNetworkIcon, SingleMachineIcon } from '../components/NetworkModeIcons';
 import { Button } from '../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Checkbox, Input, Select } from '../components/ui/Input';
@@ -30,10 +26,10 @@ import { useSaveBanner, validateConfigSection } from '../lib/config-form';
  * config tab - getting it wrong can take the web interface away with it.
  *
  * The mode at the top governs the page. It is not a preference, it is a statement about
- * how the box is cabled, and each mode makes different settings meaningful: VLAN ids
- * exist only on a trunk, a DHCP server only where the bridge *is* the machine segment.
- * Fields that cannot apply are hidden rather than disabled, because a greyed-out field
- * still reads as "a thing this mode has, which you may not change".
+ * what is on the machine side, and it makes different settings meaningful: a DHCP server
+ * and a decision about internet access exist only where the bridge *is* the machine
+ * segment. Fields that cannot apply are hidden rather than disabled, because a greyed-out
+ * field still reads as "a thing this mode has, which you may not change".
  */
 
 // ---------------------------------------------------------------------------
@@ -41,9 +37,8 @@ import { useSaveBanner, validateConfigSection } from '../lib/config-form';
 // ---------------------------------------------------------------------------
 
 const MODES = [
-  { id: 'vlan-trunk', Icon: VlanTrunkIcon },
-  { id: 'dual-nic-server', Icon: DualNicServerIcon },
-  { id: 'dual-nic-bridge', Icon: DualNicBridgeIcon },
+  { id: 'existing-network', Icon: ExistingNetworkIcon },
+  { id: 'single-machine', Icon: SingleMachineIcon },
 ] as const satisfies readonly {
   id: NetworkMode;
   Icon: (props: { className?: string }) => JSX.Element;
@@ -109,14 +104,12 @@ function ModeSelector({
  */
 function NetworkSideFields({
   side,
-  mode,
   value,
   interfaces,
   errors,
   onChange,
 }: {
   readonly side: 'lan' | 'tnc';
-  readonly mode: NetworkMode;
   readonly value: NetworkSide;
   readonly interfaces: readonly InterfaceDiscovery[];
   readonly errors: Record<string, string>;
@@ -217,24 +210,6 @@ function NetworkSideFields({
         </>
       )}
 
-      {/* Trunk mode only. In the two-NIC modes the segments are separated by being on
-          different cards, and a VLAN id there would be a field that silently changes
-          nothing — or worse, one an operator fills in believing it is doing the
-          separating. The schema enforces the same rule rather than trusting this. */}
-      {mode === 'vlan-trunk' && (
-        <Input
-          id={`${side}Vlan`}
-          label={t('vlan_id')}
-          hint={t('vlan_hint')}
-          type="number"
-          min={1}
-          max={4094}
-          value={value.vlan ?? ''}
-          onChange={(e) => set({ vlan: e.target.value === '' ? null : Number(e.target.value) })}
-          error={err('vlan')}
-        />
-      )}
-
       <Input
         id={`${side}Mtu`}
         label={t('mtu_bytes')}
@@ -265,7 +240,7 @@ function joinDns(primary: string | undefined, secondary: string | undefined): st
   return [primary ?? '', secondary ?? ''].map((s) => s.trim()).filter((s) => s !== '');
 }
 
-function InterfaceSections({ mode }: { readonly mode: NetworkMode }): JSX.Element {
+function InterfaceSections(): JSX.Element {
   const t = useTranslation('config');
   const [form, setForm] = useState<NetworkConfig>();
   const [saved, setSaved] = useState<NetworkConfig>();
@@ -475,7 +450,6 @@ function InterfaceSections({ mode }: { readonly mode: NetworkMode }): JSX.Elemen
           {driftFor('lan')}
           <NetworkSideFields
             side="lan"
-            mode={mode}
             value={form.lan}
             interfaces={interfaces}
             errors={errors}
@@ -505,7 +479,6 @@ function InterfaceSections({ mode }: { readonly mode: NetworkMode }): JSX.Elemen
           {driftFor('tnc')}
           <NetworkSideFields
             side="tnc"
-            mode={mode}
             value={form.tnc}
             interfaces={interfaces}
             errors={errors}
@@ -801,11 +774,11 @@ export function NetworkPage(): JSX.Element {
       <Card>
         <CardHeader title={t('interfaces_title')} subtitle={t('interfaces_subtitle')} />
         <CardBody>
-          <InterfaceSections mode={mode} />
+          <InterfaceSections />
         </CardBody>
       </Card>
 
-      {mode === 'dual-nic-bridge' && (
+      {mode === 'single-machine' && (
         <>
           <Card>
             <CardHeader title={t('dhcp_title')} subtitle={t('dhcp_subtitle')} />

@@ -587,13 +587,10 @@ function applyNetwork(
 
   settings.push('ipv6.method', request.ipv6Enabled ? 'auto' : 'disabled');
 
-  // MTU lives on a different setting for a VLAN connection than for a plain Ethernet
-  // one: NetworkManager rejects `802-3-ethernet.mtu` on a `vlan` profile outright, so
-  // sending the wrong one turns every tagged apply into a failure.
-  settings.push(request.vlan === null ? '802-3-ethernet.mtu' : 'vlan.mtu', String(request.mtu));
-  if (request.vlan !== null) {
-    settings.push('vlan.id', String(request.vlan));
-  }
+  // Plain Ethernet only. There was a VLAN branch here, because MTU lives on a different
+  // setting for a tagged profile and NetworkManager rejects `802-3-ethernet.mtu` on one.
+  // Trunk mode is gone, so every profile this writes is untagged.
+  settings.push('802-3-ethernet.mtu', String(request.mtu));
 
   log.exec([nmcli, 'con', 'mod', connection, ...settings]);
   log.exec([nmcli, 'con', 'up', connection]);

@@ -2,8 +2,13 @@
  * One drawing per operating mode.
  *
  * These are diagrams, not decoration: each shows where the wires go, because that is the
- * whole of what distinguishes the three modes. An operator standing in front of the
+ * whole of what distinguishes the two modes. An operator standing in front of the
  * appliance can hold the picture against what is actually plugged in.
+ *
+ * Only three things appear in them — the server, this bridge, and the controls. No
+ * switch: whether there is one on the machine segment is not what the choice is about,
+ * and drawing one made the left-hand mode look like it required particular hardware.
+ * What it is about is how many controls are out there, so that is what differs.
  *
  * Everything is stroked in `currentColor` with no fill. That is what makes them work in
  * both themes without a second set of assets — the card sets a text colour and the icon
@@ -23,7 +28,7 @@ const SVG_PROPS = {
   focusable: false,
 } as const;
 
-/** The bridge itself: the same box in all three drawings, so the difference is the cabling. */
+/** The bridge itself: the same box in both drawings, so the difference is the cabling. */
 function BridgeBox({ x = 24, y = 14 }: { readonly x?: number; readonly y?: number }): JSX.Element {
   return (
     <>
@@ -57,66 +62,45 @@ function Server({ x, y }: { readonly x: number; readonly y: number }): JSX.Eleme
 }
 
 /**
- * Mode 1 — one NIC on a trunk port, both segments as tagged VLANs.
+ * Existing machine network — several controls share the segment.
  *
- * Drawn as a single cable carrying two tagged lanes, which is the thing that trips
- * people up: it is one wire, and the separation is the switch's job.
+ * The bus with controls hanging off it is the point: this is a network that is already
+ * there, and the bridge is one more thing on it.
  */
-export function VlanTrunkIcon({ className }: { readonly className?: string }): JSX.Element {
-  return (
-    <svg {...SVG_PROPS} className={className}>
-      <Server x={3} y={8} />
-      <Machine x={3} y={24} />
-      <BridgeBox />
-      {/* Both legs converge on one port, then run as a single trunk. */}
-      <path d="M14 11 h6 q3 0 3 3 v4" />
-      <path d="M14 29 h6 q3 0 3 -3 v-4" />
-      <line x1="40" y1="20" x2="52" y2="20" />
-      <rect x="52" y="14" width="9" height="12" rx="1.5" />
-      {/* Two tags riding the one wire, which is the whole idea of a trunk. */}
-      <circle cx="44" cy="20" r="1.6" />
-      <circle cx="48" cy="20" r="1.6" />
-    </svg>
-  );
-}
-
-/**
- * Mode 2 — a NIC per side, several controls on one share.
- *
- * The fan-out on the machine side is the point: one share, many machines.
- */
-export function DualNicServerIcon({ className }: { readonly className?: string }): JSX.Element {
+export function ExistingNetworkIcon({ className }: { readonly className?: string }): JSX.Element {
   return (
     <svg {...SVG_PROPS} className={className}>
       <Server x={3} y={14} />
       <BridgeBox />
       <line x1="14" y1="20" x2="24" y2="20" />
-      {/* One port on the machine side, branching to every control on the segment. */}
-      <path d="M40 20 h5 q3 0 3 -3 v-6" />
-      <path d="M40 20 h5 q3 0 3 3 v6" />
-      <Machine x={48} y={3} />
-      <Machine x={48} y={26} />
+      {/* A run of cable down the machine side, with a drop to each control. */}
+      <line x1="40" y1="20" x2="47" y2="20" />
+      <line x1="47" y1="7" x2="47" y2="33" />
+      <line x1="47" y1="7" x2="51" y2="7" />
+      <line x1="47" y1="20" x2="51" y2="20" />
+      <line x1="47" y1="33" x2="51" y2="33" />
+      <Machine x={51} y={3} />
+      <Machine x={51} y={16} />
+      <Machine x={51} y={29} />
     </svg>
   );
 }
 
 /**
- * Mode 3 — a NIC per side, one bridged leg per control.
+ * One machine on the bridge — no machine network at all.
  *
- * Two separate paths through the box rather than a branch outside it, and a small
- * address tag on the machine side for the DHCP server this mode needs.
+ * One cable and one control, drawn large enough that the difference from the diagram
+ * beside it reads at a glance. The address tag is the DHCP server this mode needs:
+ * there is nothing else on that segment to hand one out.
  */
-export function DualNicBridgeIcon({ className }: { readonly className?: string }): JSX.Element {
+export function SingleMachineIcon({ className }: { readonly className?: string }): JSX.Element {
   return (
     <svg {...SVG_PROPS} className={className}>
       <Server x={3} y={14} />
       <BridgeBox />
       <line x1="14" y1="20" x2="24" y2="20" />
-      {/* Each machine gets its own path through the bridge, not a shared segment. */}
-      <path d="M40 17 h4 q2 0 2 -2 v-4 q0 -2 2 -2 h2" />
-      <path d="M40 23 h4 q2 0 2 2 v4 q0 2 2 2 h2" />
-      <Machine x={50} y={3} />
-      <Machine x={50} y={26} />
+      <line x1="40" y1="20" x2="49" y2="20" />
+      <Machine x={49} y={15} />
       {/* The address this mode hands out itself. */}
       <rect x="27" y="30" width="10" height="6" rx="1.5" />
       <line x1="29.5" y1="33" x2="34.5" y2="33" />

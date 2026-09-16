@@ -21,17 +21,15 @@ const network = (mode: NetworkMode) => ({
     hostname: '',
     method: 'dhcp',
     dns: [],
-    vlan: mode === 'vlan-trunk' ? 10 : null,
     mtu: 1500,
     ipv6: false,
   },
   tnc: {
-    interface: mode === 'vlan-trunk' ? 'eth0' : 'eth1',
+    interface: 'eth1',
     hostname: '',
     method: 'static',
     address: '192.168.42.1/24',
     dns: [],
-    vlan: mode === 'vlan-trunk' ? 20 : null,
     mtu: 1500,
     ipv6: false,
   },
@@ -77,54 +75,47 @@ describe('NetworkPage', () => {
     vi.clearAllMocks();
   });
 
-  it('offers all three modes and marks the stored one', async () => {
-    serve('dual-nic-server');
+  it('offers both modes and marks the stored one', async () => {
+    serve('existing-network');
     renderPage();
 
-    const selected = await screen.findByRole('button', { name: /Two NICs, server mode/ });
+    const selected = await screen.findByRole('button', { name: /Existing machine network/ });
     expect(selected).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: /One NIC, VLAN trunk/ })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
-    expect(screen.getByRole('button', { name: /Two NICs, bridge mode/ })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /One machine on the bridge/ })).toHaveAttribute(
       'aria-pressed',
       'false',
     );
   });
 
-  it('shows VLAN ids only on a trunk', async () => {
-    // In the two-NIC modes the cards do the separating, so a VLAN field there would be
-    // one an operator could fill in believing it changes something.
-    serve('dual-nic-server');
-    const { unmount } = render(
-      <BrowserRouter>
-        <NetworkPage />
-      </BrowserRouter>,
-    );
-    await screen.findByRole('button', { name: /Two NICs, server mode/ });
-    expect(screen.queryByLabelText(/VLAN/i)).not.toBeInTheDocument();
-    unmount();
-
-    serve('vlan-trunk');
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getAllByLabelText(/VLAN/i).length).toBe(2);
-    });
+  it('offers no VLAN field in either mode', async () => {
+    // Trunk mode is gone, and with it the only arrangement where a tag did anything. A
+    // field left behind would be one an operator fills in believing it separates the
+    // segments, when what separates them is now the second network card.
+    for (const mode of ['existing-network', 'single-machine'] as const) {
+      serve(mode);
+      const { unmount } = render(
+        <BrowserRouter>
+          <NetworkPage />
+        </BrowserRouter>,
+      );
+      await screen.findByRole('button', { name: /Existing machine network/ });
+      expect(screen.queryByLabelText(/VLAN/i)).not.toBeInTheDocument();
+      unmount();
+    }
   });
 
-  it('shows the DHCP server and the internet toggle only in bridge mode', async () => {
-    serve('dual-nic-server');
+  it('shows the DHCP server and the internet toggle only for a single machine', async () => {
+    serve('existing-network');
     const { unmount } = render(
       <BrowserRouter>
         <NetworkPage />
       </BrowserRouter>,
     );
-    await screen.findByRole('button', { name: /Two NICs, server mode/ });
+    await screen.findByRole('button', { name: /Existing machine network/ });
     expect(screen.queryByText('DHCP server (machine side)')).not.toBeInTheDocument();
     unmount();
 
-    serve('dual-nic-bridge');
+    serve('single-machine');
     renderPage();
     expect(await screen.findByText('DHCP server (machine side)')).toBeInTheDocument();
     expect(
@@ -132,10 +123,10 @@ describe('NetworkPage', () => {
     ).not.toBeChecked();
   });
 
-  it('proposes a one-address DHCP range for a bridged leg', async () => {
-    // A bridged leg carries exactly one control, so the factory hundred-address pool is
+  it('proposes a one-address DHCP range for a single machine', async () => {
+    // The segment carries exactly one control, so the factory hundred-address pool is
     // ninety-nine addresses nothing will ever ask for.
-    serve('dual-nic-bridge');
+    serve('single-machine');
     renderPage();
 
     const range = await screen.findByLabelText(/range/i);
@@ -143,16 +134,16 @@ describe('NetworkPage', () => {
   });
 
   it('stores a mode change without applying anything', async () => {
-    serve('dual-nic-server');
+    serve('existing-network');
     renderPage();
 
-    await screen.findByRole('button', { name: /Two NICs, server mode/ });
-    await userEvent.click(screen.getByRole('button', { name: /Two NICs, bridge mode/ }));
+    await screen.findByRole('button', { name: /Existing machine network/ });
+    await userEvent.click(screen.getByRole('button', { name: /One machine on the bridge/ }));
 
     await waitFor(() => {
       expect(apiClient.api).toHaveBeenCalledWith('config.update', {
         params: { section: 'network' },
-        body: expect.objectContaining({ mode: 'dual-nic-bridge' }),
+        body: expect.objectContaining({ mode: 'single-machine' }),
       });
     });
     // Applying is each side's own button, where the rollback lives. A mode switch must
@@ -161,16 +152,15 @@ describe('NetworkPage', () => {
   });
 
   it('puts the selection back when the backend refuses the new mode', async () => {
-    // Trunk mode with two NICs is a configuration the schema rejects. The page must not
-    // be left showing a mode that was never stored.
-    serve('dual-nic-server', { update: () => Promise.reject(new Error('interfaces disagree')) });
+    // The page must not be left showing a mode that was never stored.
+    serve('existing-network', { update: () => Promise.reject(new Error('interfaces disagree')) });
     renderPage();
 
-    await screen.findByRole('button', { name: /Two NICs, server mode/ });
-    await userEvent.click(screen.getByRole('button', { name: /One NIC, VLAN trunk/ }));
+    await screen.findByRole('button', { name: /Existing machine network/ });
+    await userEvent.click(screen.getByRole('button', { name: /One machine on the bridge/ }));
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Two NICs, server mode/ })).toHaveAttribute(
+      expect(screen.getByRole('button', { name: /Existing machine network/ })).toHaveAttribute(
         'aria-pressed',
         'true',
       );

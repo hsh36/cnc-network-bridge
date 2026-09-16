@@ -146,23 +146,6 @@ describe('apply', () => {
     expect(service().apply('lan', '127.0.0.1').status).toBe('applied');
   });
 
-  it('passes the VLAN tag through, so a tagged side is actually tagged', () => {
-    config.set('network', {
-      lan: {
-        interface: 'eth0',
-        method: 'static',
-        address: '10.0.0.5/24',
-        gateway: '10.0.0.1',
-        vlan: 10,
-      },
-      tnc: { interface: 'eth1', method: 'static', address: '192.168.42.1/24', vlan: 20 },
-    });
-
-    service().apply('tnc', '10.0.0.5');
-
-    expect(lastApply().vlan).toBe(20);
-  });
-
   it('refuses a configuration that would not work, without calling the helper', () => {
     config.set('network', {
       lan: { interface: 'eth0', method: 'static', address: '10.0.0.5/24', gateway: '10.9.9.1' },

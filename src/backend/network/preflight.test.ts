@@ -37,7 +37,6 @@ function side(overrides: Partial<NetworkSide> = {}): NetworkSide {
     address: '10.0.0.5/24',
     gateway: '10.0.0.1',
     dns: [],
-    vlan: null,
     mtu: 1500,
     ipv6: false,
     ...overrides,

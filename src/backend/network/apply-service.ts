@@ -220,7 +220,6 @@ export class NetworkApplyService {
         dns: [...desired.dns],
         mtu: desired.mtu,
         ipv6Enabled: desired.ipv6,
-        vlan: desired.vlan,
         revertAfterSeconds,
         // Only the LAN side names the machine. A host has one hostname; what the TNC
         // side calls `hostname` is the SMB server name Samba announces, which is set

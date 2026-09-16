@@ -69,8 +69,6 @@ export const networkSideSchema = z.object({
    * server that cannot be reached from that leg.
    */
   dns: z.array(ipAddressSchema).max(2).default([]),
-  /** 802.1Q tag, or `null` for untagged. */
-  vlan: z.number().int().min(1).max(4094).nullable().default(null),
   mtu: z.number().int().min(576).max(9000).default(1500),
   ipv6: z.boolean().default(false),
 });
@@ -105,26 +103,33 @@ function checkStaticAddressing(
 }
 
 /**
- * How the appliance is cabled, which decides what the rest of this section can mean.
+ * How the machine side is arranged, which decides what the rest of this section means.
  *
- * Three arrangements, and they are not variations on a theme — each answers a different
- * question about the shop floor:
+ * Two arrangements, one NIC per side in both. They differ in what is on the far side of
+ * the machine leg:
  *
- * - `vlan-trunk`: one NIC on a trunk port, both segments carried as 802.1Q VLANs. The
- *   arrangement for a Pi with a single usable port, and the one that demands the most
- *   from the switch configuration.
- * - `dual-nic-server`: a NIC per side. Several controls reach the same share, the way a
- *   file server is normally used. The default, because it is what most installations are.
- * - `dual-nic-bridge`: a NIC per side, but each control gets its own bridged leg to the
- *   LAN rather than sharing one. The TNC side then needs to hand out an address itself,
- *   because there is no DHCP server on that segment — this bridge is the whole segment.
+ * - `existing-network`: there is a machine network already, with several controls on it
+ *   and, usually, something else handing out addresses. The bridge joins it and serves
+ *   its share the way a file server would. The default, because it is what most
+ *   installations are.
+ * - `single-machine`: there is no machine network. One control is cabled straight to the
+ *   bridge, and the bridge *is* that segment — which is why it has to hand out the
+ *   address itself, and why a route to anywhere else is something that has to be asked
+ *   for rather than assumed.
+ *
+ * There was a third, `vlan-trunk`: one NIC on a trunk port carrying both segments as
+ * 802.1Q VLANs. It is gone, along with the VLAN fields, the tagging rules and the icon.
+ * It asked a shop to configure a trunk port on its switch correctly for the arrangement
+ * whose failure mode — a mistagged port — is SMB1 on the corporate LAN, which is the one
+ * outcome this product exists to prevent. Two NICs cost less than that risk, and the
+ * hardware this runs on has two.
  */
-export const networkModeSchema = z.enum(['vlan-trunk', 'dual-nic-server', 'dual-nic-bridge']);
+export const networkModeSchema = z.enum(['existing-network', 'single-machine']);
 
 export type NetworkMode = z.infer<typeof networkModeSchema>;
 
 /**
- * Settings that exist only in `dual-nic-bridge`.
+ * Settings that exist only in `single-machine`.
  *
  * `internetAccess` defaults to off and should stay off. A HEIDENHAIN control runs an
  * operating system that stopped receiving security fixes long before this bridge was
@@ -140,7 +145,7 @@ export type BridgeModeConfig = z.infer<typeof bridgeModeSchema>;
 
 export const networkConfigSchema = z
   .object({
-    mode: networkModeSchema.default('dual-nic-server'),
+    mode: networkModeSchema.default('existing-network'),
     bridge: bridgeModeSchema.default({}),
     lan: networkSideSchema.extend({ interface: interfaceNameSchema.default('eth0') }).default({}),
     tnc: networkSideSchema
@@ -167,35 +172,17 @@ export const networkConfigSchema = z
     checkStaticAddressing(cfg.lan, 'lan', ctx);
     checkStaticAddressing(cfg.tnc, 'tnc', ctx);
 
-    // The mode is a claim about the cabling, so the interfaces have to agree with it.
-    // Left unchecked, a saved `vlan-trunk` with two NICs selected would render a form
-    // full of VLAN fields that change nothing, and a `dual-nic-*` with one NIC would be
-    // the untagged shared-interface case the rule below exists to forbid.
-    if (cfg.mode === 'vlan-trunk' && cfg.lan.interface !== cfg.tnc.interface) {
+    // Both modes are one NIC per side, so this no longer depends on the mode — and it
+    // is the rule that used to be argued for in terms of 802.1Q: sharing a NIC was only
+    // ever safe when tagging kept the two segments in separate broadcast domains.
+    // Untagged, it puts SMB1 on the corporate LAN. With trunk mode gone there is no
+    // tagging left to make it safe, so a shared interface is simply refused.
+    if (cfg.lan.interface === cfg.tnc.interface) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['tnc', 'interface'],
-        message: 'VLAN trunk mode carries both segments on one NIC; select the same interface.',
+        message: 'The LAN and machine sides need one NIC each; select a different interface.',
       });
-    }
-    if (cfg.mode !== 'vlan-trunk' && cfg.lan.interface === cfg.tnc.interface) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['tnc', 'interface'],
-        message:
-          'This mode needs one NIC per side; select a different interface, or switch to VLAN trunk mode.',
-      });
-    }
-    if (cfg.mode === 'vlan-trunk') {
-      for (const which of ['lan', 'tnc'] as const) {
-        if (cfg[which].vlan === null) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [which, 'vlan'],
-            message: 'VLAN trunk mode requires a VLAN id on this side.',
-          });
-        }
-      }
     }
 
     // Enforced, not merely hidden in the form. The machine segment has nothing to
@@ -208,22 +195,6 @@ export const networkConfigSchema = z
         path: ['tnc', 'dns'],
         message: 'The TNC side has nothing to resolve; leave its DNS servers empty.',
       });
-    }
-
-    // Sharing a NIC is only safe when 802.1Q keeps the two segments in separate
-    // broadcast domains. Untagged, it would put SMB1 on the corporate LAN — which is
-    // the one outcome this product exists to prevent.
-    if (cfg.lan.interface === cfg.tnc.interface) {
-      const separated =
-        cfg.lan.vlan !== null && cfg.tnc.vlan !== null && cfg.lan.vlan !== cfg.tnc.vlan;
-      if (!separated) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['tnc', 'interface'],
-          message:
-            'The LAN and TNC sides must not share an untagged interface. Give each side its own NIC, or a different VLAN id on this one.',
-        });
-      }
     }
   });
 

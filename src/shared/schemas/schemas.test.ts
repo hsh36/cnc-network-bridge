@@ -144,68 +144,43 @@ describe('network configuration cross-field rules', () => {
     expect(networkConfigSchema.safeParse({ tnc: { address: '192.168.42.1' } }).success).toBe(false);
   });
 
-  it('allows one interface when 802.1Q keeps the two segments apart', () => {
-    // A single-NIC bridge is a legitimate deployment as long as the machine segment is
-    // tagged onto its own VLAN; that is what stops SMB1 reaching the corporate LAN.
-    const result = networkConfigSchema.safeParse({
-      mode: 'vlan-trunk',
-      lan: { interface: 'eth0', vlan: 10 },
-      tnc: { interface: 'eth0', vlan: 20 },
-    });
-    expect(result.success).toBe(true);
+  it('refuses one interface in either mode, with no tag left to make it safe', () => {
+    // A single NIC used to be legitimate as long as 802.1Q kept the machine segment on
+    // its own VLAN. Trunk mode is gone, so untagged is the only thing a shared interface
+    // can now be — and untagged means SMB1 on the corporate LAN.
+    for (const mode of ['existing-network', 'single-machine'] as const) {
+      const result = networkConfigSchema.safeParse({
+        mode,
+        lan: { interface: 'eth0' },
+        tnc: { interface: 'eth0' },
+      });
+      expect(result.success).toBe(false);
+    }
   });
 
-  it('still refuses one interface when both sides carry the same VLAN', () => {
-    const result = networkConfigSchema.safeParse({
-      mode: 'vlan-trunk',
-      lan: { interface: 'eth0', vlan: 10 },
-      tnc: { interface: 'eth0', vlan: 10 },
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('defaults to the two-NIC server mode with no internet for the machines', () => {
+  it('has no VLAN field left to fill in', () => {
+    // Not merely unused: a tag an operator could still set would be one they might
+    // believe is doing the separating that the second network card is doing.
     const parsed = networkConfigSchema.parse({});
-    expect(parsed.mode).toBe('dual-nic-server');
+    expect(parsed.lan).not.toHaveProperty('vlan');
+    expect(parsed.tnc).not.toHaveProperty('vlan');
+  });
+
+  it('defaults to an existing machine network with no internet for the machines', () => {
+    const parsed = networkConfigSchema.parse({});
+    expect(parsed.mode).toBe('existing-network');
     // A control runs an OS nobody patches any more; routing it to the internet is opt-in.
     expect(parsed.bridge.internetAccess).toBe(false);
   });
 
-  it('holds each mode to the cabling it claims', () => {
-    // Trunk mode with two NICs would render a form full of VLAN fields that change
-    // nothing; a two-NIC mode with one NIC is the untagged shared-interface case.
+  it('no longer knows the mode it dropped', () => {
     expect(
       networkConfigSchema.safeParse({
         mode: 'vlan-trunk',
-        lan: { interface: 'eth0', vlan: 10 },
-        tnc: { interface: 'eth1', vlan: 20 },
-      }).success,
-    ).toBe(false);
-
-    expect(
-      networkConfigSchema.safeParse({
-        mode: 'dual-nic-bridge',
         lan: { interface: 'eth0' },
-        tnc: { interface: 'eth0' },
+        tnc: { interface: 'eth1' },
       }).success,
     ).toBe(false);
-  });
-
-  it('requires a VLAN id on both sides in trunk mode', () => {
-    const result = networkConfigSchema.safeParse({
-      mode: 'vlan-trunk',
-      lan: { interface: 'eth0', vlan: 10 },
-      tnc: { interface: 'eth0' },
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('still refuses one interface when only one side is tagged', () => {
-    const result = networkConfigSchema.safeParse({
-      lan: { interface: 'eth0', vlan: 10 },
-      tnc: { interface: 'eth0' },
-    });
-    expect(result.success).toBe(false);
   });
 
   it('requires an address for a static TNC side but not a gateway', () => {
@@ -219,7 +194,7 @@ describe('network configuration cross-field rules', () => {
 
   it('defaults each side independently', () => {
     const parsed = networkConfigSchema.parse({});
-    expect(parsed.lan).toMatchObject({ method: 'dhcp', vlan: null, mtu: 1500, ipv6: false });
+    expect(parsed.lan).toMatchObject({ method: 'dhcp', mtu: 1500, ipv6: false });
     expect(parsed.tnc).toMatchObject({ method: 'static', address: '192.168.42.1/24', mtu: 1500 });
   });
 
@@ -240,13 +215,6 @@ describe('network configuration cross-field rules', () => {
     expect(
       networkConfigSchema.safeParse({ lan: { dns: ['1.1.1.1', '9.9.9.9', '8.8.8.8'] } }).success,
     ).toBe(false);
-  });
-
-  it('bounds the VLAN id to the 802.1Q range', () => {
-    expect(networkConfigSchema.safeParse({ lan: { vlan: 1 } }).success).toBe(true);
-    expect(networkConfigSchema.safeParse({ lan: { vlan: 4094 } }).success).toBe(true);
-    expect(networkConfigSchema.safeParse({ lan: { vlan: 0 } }).success).toBe(false);
-    expect(networkConfigSchema.safeParse({ lan: { vlan: 4095 } }).success).toBe(false);
   });
 });
 
