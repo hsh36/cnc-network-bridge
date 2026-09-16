@@ -255,6 +255,34 @@ describe('startServer', () => {
     expect(seen).toContain('lock');
   });
 
+  it('starts the cron engine, so a schedule that promises a next run takes it', async () => {
+    // Nothing called `Scheduler.start()`. Every schedule in the product was written to
+    // the table, displayed with a plausible next run, and never fired once — automatic
+    // updates included, which is how an appliance sat on an old version while its own
+    // screen said it would update at 18:00. `next_run_at` is computed when a schedule is
+    // saved, so the row looked correct for a job nothing intended to run.
+    const { paths } = makeRoot(false);
+    running = await startServer(paths);
+    const { schedules } = running.context;
+
+    const enabled = schedules.list({ limit: 100, offset: 0 }).items.filter((s) => s.enabled);
+    expect(enabled.length).toBeGreaterThan(0);
+    for (const schedule of enabled) {
+      expect(schedules.isProgrammed(schedule.id)).toBe(true);
+    }
+  });
+
+  it('stops the cron engine on shutdown, so a restart does not double-fire', async () => {
+    const { paths } = makeRoot(false);
+    const server = await startServer(paths);
+    expect(server.context.schedules.programmedCount).toBeGreaterThan(0);
+
+    await server.shutdown();
+    running = undefined;
+
+    expect(server.context.schedules.programmedCount).toBe(0);
+  });
+
   it('emits a heartbeat on the interval it was given', async () => {
     const { paths } = makeRoot(false);
     running = await startServer({ ...paths, heartbeatIntervalMs: 20 });

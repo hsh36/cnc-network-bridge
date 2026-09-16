@@ -431,6 +431,18 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
     locks.restoreServerLocks();
     started.push(() => locks.shutdown());
 
+    // Nothing had ever started the cron engine. Every schedule in the product — the
+    // automatic updates, the OS updates, prune, scan, backup, the lock windows — was
+    // written into the table, shown on screen with a next run, and never fired once.
+    // The rows looked right, which is what made it invisible: `next_run_at` is computed
+    // when a schedule is saved, so the UI could show a correct "next run" for a job the
+    // appliance had no intention of running.
+    //
+    // Last, and after the listener: `start()` catches up anything missed while the
+    // service was down, and a catch-up scan must not hold up the interface.
+    await schedules.start();
+    started.push(() => schedules.stop());
+
     // The immediate half of lock detection. A bind failure is logged and survived: the
     // periodic reconcile below still finds every open file, just later, and an appliance
     // that refused to serve its own UI because a syslog socket was taken would be a
