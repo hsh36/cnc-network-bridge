@@ -613,7 +613,28 @@ describe('write-nft-ruleset', () => {
     const h = harness();
     execute(build({ verb: 'write-nft-ruleset', content }), h.deps);
     expect(h.calls[0]!.slice(0, 3)).toEqual(['/usr/bin/nft', '-c', '-f']);
-    expect(h.calls.at(-1)).toEqual(['/usr/bin/nft', '-f', NFT_RULESET_PATH]);
+    expect(h.calls.some((argv) => argv[1] === '-f' && argv[2] === NFT_RULESET_PATH)).toBe(true);
+  });
+
+  it('turns forwarding on after the rules that govern it, never before', () => {
+    // The other order leaves a window in which the machine segment is routed under
+    // whatever filtering happened to be loaded.
+    const h = harness();
+    execute(build({ verb: 'write-nft-ruleset', content, ipForward: true }), h.deps);
+
+    const loaded = h.calls.findIndex((argv) => argv[1] === '-f' && argv[2] === NFT_RULESET_PATH);
+    const forwarding = h.calls.findIndex((argv) => argv.includes('net.ipv4.ip_forward=1'));
+    expect(loaded).toBeGreaterThanOrEqual(0);
+    expect(forwarding).toBeGreaterThan(loaded);
+  });
+
+  it('turns forwarding off when it was not asked for', () => {
+    // Set either way rather than left alone: a value another tool turned on is not this
+    // appliance's decision to inherit.
+    const h = harness();
+    execute(build({ verb: 'write-nft-ruleset', content }), h.deps);
+
+    expect(h.calls.some((argv) => argv.includes('net.ipv4.ip_forward=0'))).toBe(true);
   });
 
   it('never loads a ruleset nft rejects', () => {

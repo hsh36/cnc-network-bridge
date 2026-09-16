@@ -331,6 +331,15 @@ export interface ApplyNetworkRequest {
 export interface WriteNftRulesetRequest {
   readonly verb: 'write-nft-ruleset';
   readonly content: string;
+  /**
+   * Whether the kernel should route between interfaces at all.
+   *
+   * Carried with the ruleset rather than as a verb of its own because neither half means
+   * anything alone: forward rules on a kernel that does not forward are inert, and
+   * `ip_forward` with no rules is routing nobody asked to configure. One call sets both,
+   * so the two can never disagree.
+   */
+  readonly ipForward: boolean;
 }
 
 export interface Fail2banUnbanRequest {
@@ -625,6 +634,7 @@ export function validateRequest(raw: unknown, options: ValidateOptions = {}): Pr
       return {
         verb,
         content: requireString(verb, 'content', input.content, MAX_CONTENT_BYTES),
+        ipForward: requireBoolean(verb, 'ipForward', input.ipForward ?? false),
       };
 
     case 'fail2ban-unban':

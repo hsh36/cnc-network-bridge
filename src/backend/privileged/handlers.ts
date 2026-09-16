@@ -664,7 +664,26 @@ function writeNftRuleset(
 
   log.exec([nft, '-f', NFT_RULESET_PATH]);
 
-  return { verb: 'write-nft-ruleset', commands: log.entries, detail: { path: NFT_RULESET_PATH } };
+  /*
+    After the ruleset, never before.
+
+    Turning routing on ahead of the rules would open a window — however short — in which
+    the machine segment is routed with whatever filtering happened to be loaded. Turning
+    it off afterwards is harmless by the same logic: the rules that arrived first already
+    drop what this then stops carrying.
+
+    Set on every apply rather than written to /etc/sysctl.d, because the service reapplies
+    this on start and on every network change, so the running value is reasserted from the
+    stored configuration each time — and a leftover file cannot outlive the setting that
+    justified it.
+  */
+  log.exec([deps.resolve('sysctl'), '-w', `net.ipv4.ip_forward=${request.ipForward ? '1' : '0'}`]);
+
+  return {
+    verb: 'write-nft-ruleset',
+    commands: log.entries,
+    detail: { path: NFT_RULESET_PATH, ipForward: request.ipForward },
+  };
 }
 
 // ---------------------------------------------------------------------------

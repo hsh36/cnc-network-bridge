@@ -88,3 +88,71 @@ describe('isManagementIsolationCurrent', () => {
     expect(isManagementIsolationCurrent(undefined, { tncInterface: 'eth1' })).toBe(false);
   });
 });
+
+describe('routing the machine segment', () => {
+  const routed = { tncInterface: 'eth1', lanInterface: 'eth0', internetAccess: true };
+
+  it('drops forwarding off the machine side when internet access is off', () => {
+    // Not merely "adds no route". The host may have `ip_forward` on for its own reasons,
+    // and the off position has to mean something the appliance controls.
+    const ruleset = renderManagementIsolation({ tncInterface: 'eth1' });
+
+    expect(ruleset).toContain('iifname "eth1" drop');
+    expect(ruleset).not.toContain('masquerade');
+  });
+
+  it('lets the control out and only lets the answer back', () => {
+    const ruleset = renderManagementIsolation(routed);
+
+    expect(ruleset).toContain('iifname "eth1" oifname "eth0" accept');
+    expect(ruleset).toContain('iifname "eth0" oifname "eth1" ct state established,related accept');
+    // The asymmetry is the point: the machine cannot be patched, so nothing may open a
+    // connection towards it.
+    expect(ruleset).toContain('iifname "eth0" oifname "eth1" drop');
+  });
+
+  it('masquerades behind the LAN interface, which is the only address upstream knows', () => {
+    expect(renderManagementIsolation(routed)).toContain('oifname "eth0" masquerade');
+  });
+
+  it('still isolates management when routing is on', () => {
+    // The two are independent: a machine allowed out to a licence server is not thereby
+    // allowed into this appliance's configuration.
+    expect(renderManagementIsolation(routed)).toContain(
+      'iifname "eth1" tcp dport { 22, 443 } drop',
+    );
+  });
+
+  it('refuses to route without a LAN interface to masquerade behind', () => {
+    expect(() => renderManagementIsolation({ tncInterface: 'eth1', internetAccess: true })).toThrow(
+      FirewallError,
+    );
+  });
+
+  it('refuses to route a segment out of the interface it arrived on', () => {
+    expect(() =>
+      renderManagementIsolation({
+        tncInterface: 'eth1',
+        lanInterface: 'eth1',
+        internetAccess: true,
+      }),
+    ).toThrow(FirewallError);
+  });
+
+  it('rejects a LAN interface name that is not one', () => {
+    expect(() =>
+      renderManagementIsolation({
+        tncInterface: 'eth1',
+        lanInterface: 'eth0"; drop',
+        internetAccess: true,
+      }),
+    ).toThrow(FirewallError);
+  });
+
+  it('counts turning routing on as a ruleset change', () => {
+    // Otherwise a bridge that already had the isolation rule loaded would keep it and
+    // never apply the route the operator just asked for.
+    const off = renderManagementIsolation({ tncInterface: 'eth1', lanInterface: 'eth0' });
+    expect(isManagementIsolationCurrent(off, routed)).toBe(false);
+  });
+});

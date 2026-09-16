@@ -367,12 +367,13 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
     // the machine segment, not even for the seconds between binding and the first
     // config save. See security/firewall.ts for why this is enforced twice.
     const firewall = new FirewallService({ logger });
-    firewall.apply(service.config.get('network').tnc.interface);
-    // The rule names an interface, so moving the TNC side to another NIC has to reload
-    // it — otherwise the drop points at a NIC nothing arrives on, and the admin UI is
-    // quietly reachable from the machine segment again.
+    firewall.apply(service.config.get('network'));
+    // The rules name interfaces, so moving the TNC side to another NIC has to reload
+    // them — otherwise the drop points at a NIC nothing arrives on, and the admin UI is
+    // quietly reachable from the machine segment again. The same hook carries a change to
+    // whether the machines may route out, which lives in the same section.
     service.config.onSectionChange('network', () => {
-      firewall.apply(service.config.get('network').tnc.interface);
+      firewall.apply(service.config.get('network'));
     });
 
     const material = ensureCertificate(paths.certDir);
