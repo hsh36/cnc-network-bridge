@@ -10,6 +10,8 @@ import { ByteRangeLocker } from './byte-range';
 class FakeChild extends EventEmitter {
   readonly stderr = new EventEmitter();
   readonly killed: NodeJS.Signals[] = [];
+  /** The leash. `end()` is what a release does, and the holder dies of it. */
+  readonly stdin = { ended: false, end: (): void => void (this.stdin.ended = true) };
   // A plain field, not a defaulted constructor parameter: passing `undefined` to one of
   // those falls back to the default, and "the holder never started" is a case under test.
   pid: number | undefined = 4242;
@@ -86,6 +88,17 @@ describe('taking the lock', () => {
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/flock is not installed/);
   });
+
+  it('runs a holder that ends when its pipe does, not one that sleeps', () => {
+    const { calls, spawnImpl } = harness();
+    new ByteRangeLocker({ spawnImpl }).acquire(1, '/mnt/a/X.H');
+
+    // `sleep` ignores a closed stdin and outlives everything; that is how the orphans
+    // happened. The holder has to be something that ends on EOF.
+    const command = calls[0]?.args.at(-1) ?? '';
+    expect(command).toContain('cat');
+    expect(command).not.toContain('sleep');
+  });
 });
 
 describe('a platform without flock', () => {
@@ -134,15 +147,26 @@ describe('losing the lock', () => {
 
     locker.acquire(7, '/mnt/a/X.H');
     locker.release(7);
-    // The process dies a moment after the signal; by then it is no longer ours.
-    child.emit('exit', null, 'SIGTERM');
+    // The holder dies a moment after its stdin closes; by then it is no longer ours.
+    child.emit('exit', 0, null);
 
     expect(lost).toEqual([]);
   });
 });
 
 describe('releasing', () => {
-  it('kills the holder, since closing the descriptor is what lifts the lock', () => {
+  /**
+   * The defect this pins, found on the appliance rather than here.
+   *
+   * `flock` opens the file and hands the descriptor to the command it runs. Signalling
+   * `flock` leaves that command alive, reparented to init, still holding the lock — and
+   * nothing left in the system knows it exists. Two such orphans were found holding a
+   * program on the server share that could no longer be written by anyone.
+   *
+   * Closing stdin ends the holder instead, and a killed bridge frees its locks too,
+   * because the kernel closes the write end on the way out.
+   */
+  it('closes the pipe rather than signalling the holder, so nothing is orphaned', () => {
     const child = new FakeChild();
     const { spawnImpl } = harness([child]);
     const locker = new ByteRangeLocker({ spawnImpl });
@@ -150,7 +174,8 @@ describe('releasing', () => {
     locker.acquire(3, '/mnt/a/X.H');
     locker.release(3);
 
-    expect(child.killed).toEqual(['SIGTERM']);
+    expect(child.stdin.ended).toBe(true);
+    expect(child.killed).toEqual([]);
     expect(locker.isHeld(3)).toBe(false);
   });
 
@@ -171,7 +196,7 @@ describe('releasing', () => {
     locker.releaseAll();
 
     expect(locker.count).toBe(0);
-    expect(children.every((c) => c.killed.length === 1)).toBe(true);
+    expect(children.every((c) => c.stdin.ended)).toBe(true);
   });
 });
 

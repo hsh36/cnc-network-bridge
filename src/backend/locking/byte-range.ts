@@ -36,8 +36,21 @@ import { type DbLogger } from '../config/db';
  * is the correct outcome — a lock nobody is left to release is worse than no lock.
  */
 
-/** What `flock` is asked to run once it holds the descriptor. */
-const HOLD_COMMAND = "printf 'ACQUIRED\n'; exec sleep infinity";
+/**
+ * What `flock` is asked to run once it holds the descriptor.
+ *
+ * `cat` rather than `sleep`, and the difference is the whole correctness of the release
+ * path. `flock` opens the file and forks; the command it runs **inherits that open
+ * descriptor**, and the descriptor is the lock. Signalling `flock` therefore does not
+ * release anything — the child survives, reparented to init, holding the file locked
+ * with nothing left that knows about it. Measured on the appliance: two orphans, and a
+ * program on the server share that no one could write to again.
+ *
+ * `cat` blocks on a pipe this process owns. Closing that pipe is the release, and it
+ * needs no signal at all. It also means a bridge that is killed outright still frees
+ * every lock it held, because the kernel closes the write end on its way out.
+ */
+const HOLD_COMMAND = "printf 'ACQUIRED\n'; exec cat";
 
 export interface ByteRangeResult {
   readonly ok: boolean;
@@ -95,7 +108,8 @@ export class ByteRangeLocker {
         'flock',
         ['--shared', '--nonblock', absolutePath, '-c', HOLD_COMMAND],
         {
-          stdio: ['ignore', 'pipe', 'pipe'],
+          // stdin is the leash: the holder lives exactly as long as this pipe is open.
+          stdio: ['pipe', 'pipe', 'pipe'],
           detached: false,
         },
       );
@@ -142,7 +156,15 @@ export class ByteRangeLocker {
     return { ok: true };
   }
 
-  /** Stops holding the lock. Closing the descriptor is what releases it on the server. */
+  /**
+   * Stops holding the lock.
+   *
+   * Closes the holder's stdin rather than signalling it. `flock` has already handed the
+   * open descriptor to its child, so killing `flock` leaves that child alive and the
+   * file locked for good — which is precisely what happened on the appliance. Closing
+   * the pipe ends the child, the child's exit closes the descriptor, and the descriptor
+   * closing is what the server sees as the release.
+   */
   release(lockId: number): void {
     const child = this.held.get(lockId);
     if (child === undefined) {
@@ -150,7 +172,7 @@ export class ByteRangeLocker {
     }
     // Deleted first, so the exit handler does not report a release as a loss.
     this.held.delete(lockId);
-    child.kill('SIGTERM');
+    child.stdin?.end();
   }
 
   isHeld(lockId: number): boolean {
