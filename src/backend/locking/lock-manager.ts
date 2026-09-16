@@ -9,6 +9,7 @@ import { type ConfigManager } from '../config/config-manager';
 import { type Db, type DbLogger, type SqlValue } from '../config/db';
 import { isMountPoint } from '../smb/cifs-mount';
 
+import { ByteRangeLocker } from './byte-range';
 import { removeSidecar, writeSidecar } from './sidecar';
 
 /**
@@ -139,7 +140,15 @@ export interface LockManagerOptions {
    * appliance's own disk and reported them as projected onto the server.
    */
   readonly isMounted?: (mountPoint: string) => boolean;
+  /**
+   * Holds the real, server-enforced locks. Injected so tests can drive the lifetime
+   * without spawning anything, and so a platform without `flock` can run with none.
+   */
+  readonly byteRange?: ByteRangeLocker;
 }
+
+/** Kinds that additionally drop a marker next to the file for people to see. */
+const SERVER_MARKER_KINDS: ReadonlySet<ServerLockKind> = new Set(['sidecar', 'byte_range']);
 
 export class LockManager {
   private readonly db: Db;
@@ -147,6 +156,7 @@ export class LockManager {
   private readonly logger: DbLogger | undefined;
   private readonly now: () => number;
   private readonly isMounted: (mountPoint: string) => boolean;
+  private readonly byteRange: ByteRangeLocker;
   private readonly handlers = new Set<LockEventHandler>();
 
   constructor(options: LockManagerOptions) {
@@ -155,6 +165,12 @@ export class LockManager {
     this.logger = options.logger;
     this.now = options.now ?? (() => Math.floor(Date.now() / 1000));
     this.isMounted = options.isMounted ?? ((path) => isMountPoint(path));
+    this.byteRange =
+      options.byteRange ??
+      new ByteRangeLocker({
+        ...(options.logger ? { logger: options.logger } : {}),
+        onLost: (lockId, reason) => this.recordProjectionLoss(lockId, reason),
+      });
   }
 
   /**
@@ -277,7 +293,12 @@ export class LockManager {
       { id: row.id, releasedAt, reason: reason ?? null },
     );
 
-    if ((row.server_lock_kind as ServerLockKind) === 'sidecar') {
+    // Closing the descriptor is what lifts the lock on the server, so this happens
+    // whether or not the mount is still there — a holder for a share that vanished is a
+    // process with nothing left to protect.
+    this.byteRange.release(row.id);
+
+    if (SERVER_MARKER_KINDS.has(row.server_lock_kind as ServerLockKind)) {
       const mount = this.getMountPoint(row.share_id);
       if (mount !== undefined && !this.isMounted(mount)) {
         // Symmetry with the write side, and for a sharper reason: deleting a path under
@@ -361,14 +382,6 @@ export class LockManager {
     if (kind === 'none') {
       return row;
     }
-    if (kind === 'byte_range') {
-      // Real byte-range locking against the server share is negotiated over the SMB
-      // session itself (the SMB bridge layer, T14) rather than here — this class only
-      // ever writes a sidecar marker. A row configured for byte_range simply carries
-      // no projection error of its own; it is not this module's failure to report.
-      return row;
-    }
-
     const mount = this.getMountPoint(row.share_id);
     if (mount === undefined) {
       this.db.run(`UPDATE locks SET server_lock_ok = 0, server_lock_error = @err WHERE id = @id`, {
@@ -389,6 +402,26 @@ export class LockManager {
         'server share is not mounted; the lock is held locally but not projected',
       );
     } else {
+      if (kind === 'byte_range') {
+        const target = ByteRangeLocker.targetPath(mount, row.rel_path);
+        const held = this.byteRange.acquire(row.id, target);
+        if (!held.ok) {
+          this.db.run(
+            `UPDATE locks SET server_lock_ok = 0, server_lock_error = @err WHERE id = @id`,
+            { id: row.id, err: held.error ?? 'the server-side lock could not be taken' },
+          );
+          this.logger?.warn(
+            { shareId: row.share_id, relPath: row.rel_path, error: held.error },
+            'the lock is held locally but the server does not enforce it',
+          );
+          return this.db.get<LockRow>('SELECT * FROM locks WHERE id = @id', { id: row.id }) ?? row;
+        }
+      }
+
+      // The marker goes on for `byte_range` too. The lock is enforced without it, but
+      // the marker is the part a person sees: someone browsing the share in Explorer
+      // gets an explanation for why the file will not save, rather than a refusal with
+      // no author.
       const result = writeSidecar(
         mount,
         row.rel_path,
@@ -412,6 +445,67 @@ export class LockManager {
 
     const refreshed = this.db.get<LockRow>('SELECT * FROM locks WHERE id = @id', { id: row.id });
     return refreshed ?? row;
+  }
+
+  /**
+   * Records that a server-side lock is gone while the lock itself still stands.
+   *
+   * The row stays active on purpose. The bridge's own lock is the database row; losing
+   * the projection means other clients can now write, which is worth surfacing loudly,
+   * but it is not a reason to let the control's file go unprotected here as well.
+   */
+  private recordProjectionLoss(lockId: number, reason: string): void {
+    this.db.run(
+      `UPDATE locks SET server_lock_ok = 0, server_lock_error = @err
+        WHERE id = @id AND released_at IS NULL`,
+      { id: lockId, err: reason },
+    );
+  }
+
+  /**
+   * Re-establishes the server-side locks for rows that are still held.
+   *
+   * A holder is a child process, so every one of them died with the previous run. The
+   * rows outlived them, and without this the appliance would come back believing it
+   * protects files that anyone can now write. Called once at startup, after the shares
+   * are mounted.
+   */
+  restoreServerLocks(): { restored: number; failed: number } {
+    const rows = this.db.all<LockRow>(
+      `SELECT * FROM locks WHERE released_at IS NULL AND server_lock_kind = 'byte_range'`,
+    );
+    let restored = 0;
+    let failed = 0;
+
+    for (const row of rows) {
+      const mount = this.getMountPoint(row.share_id);
+      if (mount === undefined || !this.isMounted(mount)) {
+        failed += 1;
+        this.recordProjectionLoss(row.id, 'the share was not mounted when the bridge started');
+        continue;
+      }
+      const held = this.byteRange.acquire(row.id, ByteRangeLocker.targetPath(mount, row.rel_path));
+      if (held.ok) {
+        restored += 1;
+        this.db.run(
+          `UPDATE locks SET server_lock_ok = 1, server_lock_error = NULL WHERE id = @id`,
+          { id: row.id },
+        );
+      } else {
+        failed += 1;
+        this.recordProjectionLoss(row.id, held.error ?? 'the lock could not be retaken');
+      }
+    }
+
+    if (rows.length > 0) {
+      this.logger?.info({ restored, failed }, 'server-side locks re-established after startup');
+    }
+    return { restored, failed };
+  }
+
+  /** Stops holding every server-side lock, without releasing the locks themselves. */
+  shutdown(): void {
+    this.byteRange.releaseAll();
   }
 
   private getMountPoint(shareId: number): string | undefined {

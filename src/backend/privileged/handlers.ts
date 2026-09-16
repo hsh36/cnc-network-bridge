@@ -211,6 +211,13 @@ class CommandLog {
 /**
  * Mount options that are never negotiable.
  *
+ * `nobrl` is conspicuous by its absence, and deliberately so. It was here, with no
+ * reason recorded next to it, and it means "never send byte-range lock requests to the
+ * server" — which quietly disabled the one thing the product exists to do. A control
+ * opening a program is supposed to make that program unwritable for everyone else; with
+ * `nobrl` every lock stayed inside this machine, the share was left open, and the
+ * appliance reported the file as protected. It must not come back.
+ *
  * `soft` is the load-bearing one. With `hard`, a CIFS call against a server that has
  * gone away blocks in uninterruptible sleep forever; the syscall is made from a libuv
  * thread pool worker, so four such calls exhaust the pool and the entire service —
@@ -225,7 +232,6 @@ export function buildMountOptions(request: MountShareRequest, credentialsPath: s
     `vers=${request.smbVersion}`,
     'soft',
     'noserverino',
-    'nobrl',
     `uid=${request.uid}`,
     `gid=${request.gid}`,
     'file_mode=0660',

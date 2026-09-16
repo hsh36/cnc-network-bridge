@@ -380,7 +380,7 @@ describe('assertSoftMount', () => {
     // list a working share produced on the appliance while being reported offline.
     expect(() =>
       assertSoftMount(
-        entry('rw,relatime,vers=3.1.1,seal,soft,nounix,mapposix,nobrl,echo_interval=10,actimeo=1'),
+        entry('rw,relatime,vers=3.1.1,seal,soft,nounix,mapposix,echo_interval=10,actimeo=1'),
       ),
     ).not.toThrow();
   });

@@ -1,11 +1,22 @@
 import { existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { cleanupTmpDbs, tmpDb, tmpDir } from '../../../tests/support/tmp-db';
 import { ConfigManager } from '../config/config-manager';
 import { type Db } from '../config/db';
 import { runMigrations } from '../config/migrations/runner';
 import { generateSecretKey } from '../config/secrets';
+import { EventEmitter } from 'node:events';
+import { type ChildProcess, type spawn } from 'node:child_process';
+import { ByteRangeLocker } from './byte-range';
 import { LockHeldError, LockManager, LockNotFoundError } from './lock-manager';
+
+/** A holder that behaves like a successful `flock`: it starts and stays running. */
+const fakeSpawn = (() => {
+  const child = new EventEmitter() as EventEmitter & { pid: number; kill: () => boolean };
+  child.pid = 1234;
+  child.kill = () => true;
+  return child as unknown as ChildProcess;
+}) as unknown as typeof spawn;
 
 let db: Db;
 let config: ConfigManager;
@@ -47,6 +58,10 @@ beforeEach(() => {
     config,
     now: () => clockSeconds,
     isMounted: () => true,
+    // No real `flock` is spawned here. These tests are about the rows and the marker;
+    // the holder's own lifetime is covered in byte-range.test.ts, and spawning a child
+    // per lock would make this suite depend on a util-linux that Windows does not have.
+    byteRange: new ByteRangeLocker({ spawnImpl: fakeSpawn }),
   });
 });
 
@@ -287,5 +302,135 @@ describe('createManual', () => {
     });
     expect(lock.origin).toBe('manual');
     expect(lock.note).toBe('operator hold');
+  });
+});
+
+describe('server-enforced locks', () => {
+  /** Records what a holder was asked to do, without starting one. */
+  function recordingLocker(): { locker: ByteRangeLocker; taken: string[]; dropped: number[] } {
+    const taken: string[] = [];
+    const dropped: number[] = [];
+    const locker = {
+      acquire: (_id: number, path: string) => {
+        taken.push(path);
+        return { ok: true };
+      },
+      release: (id: number) => {
+        dropped.push(id);
+      },
+      releaseAll: () => undefined,
+      isHeld: () => true,
+      count: taken.length,
+    } as unknown as ByteRangeLocker;
+    return { locker, taken, dropped };
+  }
+
+  function managerWith(locker: ByteRangeLocker): LockManager {
+    return new LockManager({
+      db,
+      config,
+      now: () => clockSeconds,
+      isMounted: () => true,
+      byteRange: locker,
+    });
+  }
+
+  it('takes the lock on the file on the server share, not the cached copy', () => {
+    const { locker, taken } = recordingLocker();
+    const shareId = insertShare();
+
+    managerWith(locker).acquire({ shareId, relPath: 'sub/PART1.H', origin: 'tnc' });
+
+    // The cache copy is ours; locking it would protect nothing from anyone.
+    expect(taken).toEqual([posix.join(mountPoint, 'sub/PART1.H')]);
+  });
+
+  it('writes the marker as well, so a person sees why the file will not save', () => {
+    const { locker } = recordingLocker();
+    const shareId = insertShare();
+
+    const lock = managerWith(locker).acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+
+    expect(existsSync(join(mountPoint, '.~lock.PART1.H#'))).toBe(true);
+    expect(lock.serverLockOk).toBe(true);
+  });
+
+  it('drops the holder when the lock is released', () => {
+    const { locker, dropped } = recordingLocker();
+    const shareId = insertShare();
+    const mgr = managerWith(locker);
+    const lock = mgr.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+
+    mgr.release(lock.id);
+
+    expect(dropped).toEqual([lock.id]);
+  });
+
+  it('records a lock the server will not enforce, rather than claiming it holds', () => {
+    const failing = {
+      acquire: () => ({ ok: false, error: 'flock: No such file or directory' }),
+      release: () => undefined,
+      releaseAll: () => undefined,
+      isHeld: () => false,
+      count: 0,
+    } as unknown as ByteRangeLocker;
+    const shareId = insertShare();
+
+    const lock = managerWith(failing).acquire({ shareId, relPath: 'GONE.H', origin: 'tnc' });
+
+    // The row still stands: the bridge's own lock is the row, and the control's file
+    // stays protected here even when the projection onto the server failed.
+    expect(lock.releasedAt).toBeNull();
+    expect(lock.serverLockOk).toBe(false);
+    expect(lock.serverLockError).toMatch(/No such file/);
+  });
+
+  it('retakes the locks that outlived the process that was holding them', () => {
+    // Every holder is a child process, so a restart leaves rows with nothing behind
+    // them. Without this the bridge comes back believing it protects open files.
+    const { locker, taken } = recordingLocker();
+    const shareId = insertShare();
+    managerWith(locker).acquire({ shareId, relPath: 'STILL_OPEN.H', origin: 'tnc' });
+    taken.length = 0;
+
+    const afterRestart = managerWith(locker);
+    const result = afterRestart.restoreServerLocks();
+
+    expect(result).toEqual({ restored: 1, failed: 0 });
+    expect(taken).toEqual([posix.join(mountPoint, 'STILL_OPEN.H')]);
+  });
+
+  it('does not retake a lock that was already released', () => {
+    const { locker, taken } = recordingLocker();
+    const shareId = insertShare();
+    const mgr = managerWith(locker);
+    const lock = mgr.acquire({ shareId, relPath: 'DONE.H', origin: 'tnc' });
+    mgr.release(lock.id);
+    taken.length = 0;
+
+    expect(managerWith(locker).restoreServerLocks()).toEqual({ restored: 0, failed: 0 });
+    expect(taken).toEqual([]);
+  });
+
+  it('marks a lock unenforced when its share is not mounted at startup', () => {
+    const { locker } = recordingLocker();
+    const shareId = insertShare();
+    managerWith(locker).acquire({ shareId, relPath: 'STILL_OPEN.H', origin: 'tnc' });
+
+    const unmounted = new LockManager({
+      db,
+      config,
+      now: () => clockSeconds,
+      isMounted: () => false,
+      byteRange: locker,
+    });
+    expect(unmounted.restoreServerLocks()).toEqual({ restored: 0, failed: 1 });
+
+    const row = db.get<{ server_lock_ok: number; server_lock_error: string }>(
+      'SELECT server_lock_ok, server_lock_error FROM locks WHERE rel_path = @p',
+      { p: 'STILL_OPEN.H' },
+    );
+    expect(row?.server_lock_ok).toBe(0);
+    expect(row?.server_lock_error).toMatch(/not mounted/);
   });
 });

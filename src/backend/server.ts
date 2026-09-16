@@ -424,6 +424,13 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
     void sync.reconcile();
     started.push(() => sync.stop());
 
+    // Every server-side lock is held by a child process, so the previous run's holders
+    // died with it while the rows survived. Retaking them here is what stops the bridge
+    // coming back convinced it protects files that anyone can now write. After the
+    // shares are mounted, or there would be nothing to take a lock on.
+    locks.restoreServerLocks();
+    started.push(() => locks.shutdown());
+
     // The immediate half of lock detection. A bind failure is logged and survived: the
     // periodic reconcile below still finds every open file, just later, and an appliance
     // that refused to serve its own UI because a syslog socket was taken would be a

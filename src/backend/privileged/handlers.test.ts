@@ -279,6 +279,21 @@ describe('mount-share', () => {
     expect(rendered.split(',').map((entry) => entry.split('=')[0])).not.toContain(option);
   });
 
+  /**
+   * Not a style preference. `nobrl` tells the cifs client to keep byte-range locks to
+   * itself and never send them to the server, which turns the appliance's central
+   * promise — a program open on a control cannot be edited by anyone else — into a
+   * local no-op, while the lock row goes on reporting success. It sat in this list
+   * without a reason beside it, and the only symptom was that nothing was ever actually
+   * protected.
+   */
+  it('never passes nobrl, which would disable server-side locking entirely', () => {
+    const request = build(MOUNT_REQUEST) as Extract<PrivilegedRequest, { verb: 'mount-share' }>;
+    const rendered = buildMountOptions(request, '/run/tnc-bridge/creds');
+
+    expect(rendered.split(',')).not.toContain('nobrl');
+  });
+
   it('keeps the options that bound how long a call against a dead server hangs', () => {
     const request = build(MOUNT_REQUEST) as Extract<PrivilegedRequest, { verb: 'mount-share' }>;
     const rendered = buildMountOptions(request, '/run/tnc-bridge/creds');

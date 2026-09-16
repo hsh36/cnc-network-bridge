@@ -448,11 +448,24 @@ export const syncConfigSchema = z.object({
 // locking
 // ---------------------------------------------------------------------------
 
+/**
+ * How a lock held here is made visible — or binding — on the server share.
+ *
+ * - `none`: the lock exists only in this appliance's database.
+ * - `sidecar`: a `.~lock.<name>#` marker next to the file, in the convention
+ *   LibreOffice has used for decades. Anything that knows the convention stays off the
+ *   file; anything that does not writes straight through it. Advisory, and no more.
+ * - `byte_range`: a shared byte-range lock the SMB server itself enforces, so another
+ *   client is refused when it tries to write. Reading stays open, which is the point —
+ *   a colleague may look at a program that is running, just not change it underneath
+ *   the machine cutting it. The marker is written as well, so a person browsing the
+ *   share still gets an explanation rather than a bare refusal.
+ */
 export const serverProjectionSchema = z.enum(['none', 'sidecar', 'byte_range']);
 
 export const lockingConfigSchema = z.object({
   enabled: z.boolean().default(true),
-  serverProjection: serverProjectionSchema.default('sidecar'),
+  serverProjection: serverProjectionSchema.default('byte_range'),
   /** Ceiling for a TNC that opens a file and never closes it. */
   tncLockTtlS: z.number().int().min(30).max(86_400).default(900),
   /** Grace period after `close` before the lock is released, to absorb save-close-reopen. */

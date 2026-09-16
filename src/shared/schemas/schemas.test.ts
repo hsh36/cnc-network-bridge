@@ -42,7 +42,7 @@ describe('configuration defaults', () => {
   it('matches §6 for the locking section, with schedules off by default', () => {
     expect(configSectionSchemas.locking.parse({})).toEqual({
       enabled: true,
-      serverProjection: 'sidecar',
+      serverProjection: 'byte_range',
       tncLockTtlS: 900,
       releaseLingerS: 5,
       scheduleDefault: 'none',

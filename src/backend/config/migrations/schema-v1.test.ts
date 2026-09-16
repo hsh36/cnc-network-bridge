@@ -57,8 +57,9 @@ describe('migration application', () => {
   it('reaches the latest schema version', () => {
     // 001_init, 002_network_config, 003_dhcp, 004_network_per_side,
     // 005_share_credentials, 006_os_update_schedule, 007_share_tnc_access,
-    // 008_fixed_update_repo, 009_field_units_take_betas, 010_deletions_propagate.
-    expect(db.userVersion).toBe(10);
+    // 008_fixed_update_repo, 009_field_units_take_betas, 010_deletions_propagate,
+    // 011_enforced_locks.
+    expect(db.userVersion).toBe(11);
   });
 
   it('creates all fourteen tables from §2, plus the log sink and the ledger', () => {
