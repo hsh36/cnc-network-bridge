@@ -196,6 +196,26 @@ export class SambaConfigManager {
   }
 
   /**
+   * Re-read `smb.conf` without dropping established sessions.
+   *
+   * What a failover flip needs: `read only` is a per-share parameter smbd picks up on a
+   * reload, and the alternative would cut every machine's SMB session — including one
+   * that is mid-read on a share that is perfectly healthy — to change a flag on a
+   * different share. A machine reading a program when its share goes read-only keeps
+   * reading it; the next write is what gets refused.
+   */
+  reload(): void {
+    try {
+      this.invoke({ verb: 'reload-samba', mode: 'reload' });
+    } catch (error) {
+      this.logger?.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        'could not reload Samba',
+      );
+    }
+  }
+
+  /**
    * Restart smbd rather than reload it.
    *
    * `interfaces` and `bind interfaces only` are read at startup; smbd will not rebind

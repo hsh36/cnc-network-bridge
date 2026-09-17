@@ -23,6 +23,7 @@ import { ManagedSchedules } from './system/managed-schedules';
 import { OsUpdateManager } from './system/os-update-manager';
 import { registerUpdateJobs } from './system/update-jobs';
 import { UpdateManager } from './system/update-manager';
+import { FailoverService } from './recovery/failover-service';
 import { FirewallService } from './security/firewall-service';
 import { BlobStore } from './versioning/blob-store';
 import { VersionCleanup } from './versioning/cleanup';
@@ -378,6 +379,35 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
 
     const material = ensureCertificate(paths.certDir);
 
+    /*
+      Failover, and the timer that feeds it.
+
+      Built before the context because `/status` reports its reason line, and started
+      after Samba exists because a flip has to re-render `smb.conf` — the read-only flag
+      is only a database column until smbd is told about it.
+    */
+    const failover = new FailoverService({
+      db: service.db,
+      config: service.config,
+      metrics,
+      logger,
+      audit,
+      onFlip: (change) => {
+        // Synchronous, and the whole point of the feature: until smb.conf says
+        // `read only = yes`, a machine can still save into a share whose server is gone.
+        if (samba.reconcile()) {
+          samba.reload();
+        }
+        events.publish({
+          type: 'failover',
+          ts: Date.now(),
+          shareId: change.shareId,
+          readOnly: change.readOnly,
+          reason: change.reasons.join(', '),
+        });
+      },
+    });
+
     const context: AppContext = {
       db: service.db,
       config: service.config,
@@ -392,6 +422,7 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
       shareCacheRoot: createShareCacheRootResolver(service.db),
       sync,
       samba,
+      failover,
       updates,
       osUpdates,
       logger,
@@ -502,6 +533,28 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
       reconcileLocks.unref();
       started.push(() => clearInterval(reconcileLocks));
     }
+
+    /*
+      Fifteen seconds, against a grace period of five minutes.
+
+      The interval decides how quickly a change is *noticed*, not when it takes effect —
+      the controller measures its windows against the clock, so observing more often does
+      not fail over sooner. It is cheap: one indexed query over the share table and two
+      gauge reads, no probing, because the mount state it needs is what the scan loop
+      already wrote.
+    */
+    const failoverTimer = setInterval(() => {
+      try {
+        failover.observe();
+      } catch (error) {
+        logger.warn(
+          { error: error instanceof Error ? error.message : String(error) },
+          'failover observation failed',
+        );
+      }
+    }, 15_000);
+    failoverTimer.unref();
+    started.push(() => clearInterval(failoverTimer));
 
     // After the interface binding is settled, so the first render names the NIC the
     // TNC side is actually on. A restart rather than a reload: smbd reads `interfaces`

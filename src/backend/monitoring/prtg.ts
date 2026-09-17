@@ -112,6 +112,39 @@ export function buildPrtgResponse(options: PrtgOptions): PrtgResponse {
       unit: 'Count',
       float: 0,
     },
+    /*
+      Two channels rather than a limit on the one above.
+
+      'Shares online' cannot carry a threshold: the useful bound is "fewer than the
+      shares you have", which is a number that changes when an operator adds a share —
+      and PRTG reads a channel's limits when the sensor is created and ignores them
+      afterwards. Counting the bad ones instead makes the bound a constant, and zero is
+      a constant that stays correct however many shares the bridge grows.
+
+      They are separate because they answer different questions at different urgencies.
+      Offline is a warning: the server is gone, the machines are still working out of the
+      cache, and there is a grace period in which it may come back before anyone notices.
+      Read-only is an error: the grace period is over, and a machine that tries to save a
+      program right now will be refused.
+    */
+    {
+      channel: 'Shares offline',
+      value: metrics.sharesOffline.get(),
+      unit: 'Count',
+      float: 0,
+      limitmode: 1,
+      limitmaxwarning: limit(0),
+      limitwarningmsg: 'A share cannot reach its server',
+    },
+    {
+      channel: 'Shares read-only',
+      value: metrics.sharesReadOnly.get(),
+      unit: 'Count',
+      float: 0,
+      limitmode: 1,
+      limitmaxerror: limit(0),
+      limiterrormsg: 'Machines are being refused writes',
+    },
     {
       channel: 'Version store',
       value: metrics.versionBytes.get(),

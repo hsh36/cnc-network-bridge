@@ -59,7 +59,7 @@ export function statusRoutes(ctx: AppContext): Router {
         unacknowledgedConflicts,
         ...throughput(ctx),
       },
-      readOnlyReason: null,
+      readOnlyReason: ctx.failover?.readOnlyReason() ?? null,
     };
     ok(res, status);
   });

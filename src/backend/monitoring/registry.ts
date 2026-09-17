@@ -432,6 +432,15 @@ export interface BridgeMetrics {
   readonly versionsStored: Gauge;
   readonly versionBytes: Gauge;
   readonly sharesOnline: Gauge;
+  /**
+   * Enabled shares whose server link is down, and enabled shares currently refusing
+   * writes. Counted rather than derived from `sharesOnline`, because a monitoring
+   * threshold has to be a fixed number: PRTG takes a channel's limits when the sensor is
+   * created and ignores later changes, so "fewer than the shares you happen to have" is
+   * not a limit anyone can express. "More than zero" is.
+   */
+  readonly sharesOffline: Gauge;
+  readonly sharesReadOnly: Gauge;
   readonly uptime: Gauge;
   readonly registry: MetricsRegistry;
 }
@@ -466,6 +475,14 @@ export function createBridgeMetrics(registry = new MetricsRegistry()): BridgeMet
       'Bytes held by the version blob store.',
     ),
     sharesOnline: registry.gauge('tnc_shares_online', 'Shares whose server link is reachable.'),
+    sharesOffline: registry.gauge(
+      'tnc_shares_offline',
+      'Enabled shares whose server link is down or erroring.',
+    ),
+    sharesReadOnly: registry.gauge(
+      'tnc_shares_read_only',
+      'Enabled shares currently refusing writes from the machines.',
+    ),
     uptime: registry.gauge('tnc_uptime_seconds', 'Seconds since the service started.'),
   };
 }

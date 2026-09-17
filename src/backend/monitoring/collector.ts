@@ -298,6 +298,20 @@ export class MetricsCollector {
           "SELECT count(*) FROM shares WHERE enabled = 1 AND status NOT IN ('offline', 'error')",
         ) ?? 0;
       this.metrics.sharesOnline.set(onlineShares);
+
+      const offlineShares =
+        this.db.pluck<number>(
+          "SELECT count(*) FROM shares WHERE enabled = 1 AND status IN ('offline', 'error')",
+        ) ?? 0;
+      this.metrics.sharesOffline.set(offlineShares);
+
+      // Both flags, because the question this answers is "can the machines save?" and
+      // an operator-imposed read-only stops them exactly as a failover does.
+      const readOnlyShares =
+        this.db.pluck<number>(
+          'SELECT count(*) FROM shares WHERE enabled = 1 AND (read_only = 1 OR failover_read_only = 1)',
+        ) ?? 0;
+      this.metrics.sharesReadOnly.set(readOnlyShares);
     } catch (err) {
       this.logger?.warn({ err }, 'could not read metrics from the database');
     }

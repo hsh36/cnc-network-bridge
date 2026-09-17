@@ -5,6 +5,7 @@ import { type LockManager } from '../locking/lock-manager';
 import { type BridgeMetrics } from '../monitoring/registry';
 import { type Scheduler } from '../scheduling/scheduler';
 import { type AuditLog } from '../security/audit-log';
+import { type FailoverService } from '../recovery/failover-service';
 import { type SambaConfigManager } from '../smb/samba-config-manager';
 import { type SyncSupervisor } from '../sync/supervisor';
 import { type OsUpdateManager } from '../system/os-update-manager';
@@ -67,6 +68,13 @@ export interface AppContext {
    * share no machine can reach.
    */
   readonly samba?: SambaConfigManager;
+  /**
+   * Present in the running service; absent in tests that only exercise routes.
+   *
+   * `/status` asks it why writes are being held, which is the one place an operator can
+   * find out without reading the log.
+   */
+  readonly failover?: FailoverService;
   /**
    * Owner of the update state the `/update/*` routes report (T43/T44).
    *
