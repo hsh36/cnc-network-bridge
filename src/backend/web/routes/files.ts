@@ -1,10 +1,10 @@
 import { createReadStream } from 'node:fs';
 import { open, stat } from 'node:fs/promises';
-import { isAbsolute, join, normalize, resolve, sep } from 'node:path';
 
 import { Router } from 'express';
 import { PREVIEW_MAX_BYTES, type FilePreview, listFilesQuerySchema } from '../../../shared';
 import { type SqlValue } from '../../config/db';
+import { PathTraversalError, safeResolve } from '../../security/paths';
 import { type AppContext } from '../context';
 import { HttpError } from '../envelope';
 import { asyncHandler, ok, requireSession, requireSessionOrToken } from '../middleware';
@@ -22,9 +22,6 @@ import { asyncHandler, ok, requireSession, requireSessionOrToken } from '../midd
  * being served anyway. It is also the copy the operator is asking about: "what is on the
  * bridge" is the question the file browser answers.
  */
-
-/** Leading `/` or `\` on a stored relative path, which would make `join` ignore the root. */
-const LEADING_SEPARATORS = /^[/\\]+/;
 
 /** Characters that would let a filename break out of a quoted header value. */
 const UNSAFE_HEADER_CHARS = /["\\\r\n]/g;
@@ -83,11 +80,30 @@ async function resolveIndexedFile(
     throw new HttpError(404, 'NOT_FOUND', 'The share this file belonged to is gone');
   }
 
-  const relative = normalize(row.rel_path).replace(LEADING_SEPARATORS, '');
-  const absolute = resolve(join(root, relative));
-  const rootPrefix = resolve(root) + sep;
-  if (!isAbsolute(absolute) || !absolute.startsWith(rootPrefix)) {
-    throw new HttpError(400, 'VALIDATION_FAILED', 'That path escapes the share root');
+  /*
+    `safeResolve`, not a containment check written here.
+
+    This route first grew its own — normalise, strip leading separators, resolve, compare
+    against the root prefix — which catches traversal and absolute paths and misses the
+    two that security/paths.ts was written for: a NUL byte, which truncates the string at
+    the syscall boundary so that the path checked and the path opened are different
+    things, and the Windows drive-relative form `C:foo`, which resolves against that
+    drive's working directory rather than the root.
+
+    Neither is reachable through a rel_path the scanner wrote, because no filesystem
+    hands out a name containing a NUL. That is not the reason to use the shared one. The
+    reason is that path containment is prevented by there being a single implementation
+    every caller uses, and a second one that is merely almost as good is how the first
+    one stops being the only one.
+  */
+  let absolute: string;
+  try {
+    absolute = safeResolve(root, row.rel_path);
+  } catch (err) {
+    if (err instanceof PathTraversalError) {
+      throw new HttpError(400, 'VALIDATION_FAILED', 'That path escapes the share root');
+    }
+    throw err;
   }
 
   let size: number;
