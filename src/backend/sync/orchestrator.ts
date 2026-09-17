@@ -147,6 +147,17 @@ export interface SyncOutcome {
 }
 
 export interface CycleResult {
+  /**
+   * Whether the server share was reachable *and* mounted for this cycle.
+   *
+   * Returned rather than kept private because the supervisor is what writes
+   * `shares.status`, and without this it had nothing to write `offline` from: it stamped
+   * `idle` after every cycle that did not throw, so the column said a share was healthy
+   * while its server had been gone for a quarter of an hour. Everything that reads that
+   * column — the dashboard's server link, the PRTG channels, the failover service —
+   * inherited the same blindness.
+   */
+  readonly serverOnline: boolean;
   readonly scanned: number;
   readonly applied: number;
   readonly failed: number;
@@ -267,14 +278,17 @@ export class SyncOrchestrator extends EventEmitter {
   private async cycle(): Promise<CycleResult> {
     const outcomes: SyncOutcome[] = [];
 
+    // These two return before the probe runs. They report the server as not online,
+    // because "we did not look" must never be recorded as "it was there" — a paused
+    // share that reported its server healthy would keep the failover service asleep.
     if (this.paused) {
       this.setStatus('paused');
-      return this.summarise(outcomes, false);
+      return this.summarise(outcomes, false, false);
     }
 
     if (!this.tryEnterBreaker()) {
       this.setStatus('error');
-      return this.summarise(outcomes, true);
+      return this.summarise(outcomes, true, false);
     }
 
     this.setStatus('scanning');
@@ -291,7 +305,7 @@ export class SyncOrchestrator extends EventEmitter {
     } catch (error) {
       this.setStatus('error');
       this.emit('error', { shareId: this.shareId, error: describe(error) });
-      return this.summarise(outcomes, false);
+      return this.summarise(outcomes, false, online);
     }
 
     if (online) {
@@ -319,7 +333,7 @@ export class SyncOrchestrator extends EventEmitter {
     if (!this.paused && this.breaker !== 'open') {
       this.setStatus(online ? 'idle' : 'offline');
     }
-    return this.summarise(outcomes, this.breaker === 'open');
+    return this.summarise(outcomes, this.breaker === 'open', online);
   }
 
   /** Reconciles one path. Returns `null` when the path was not due for a retry yet. */
@@ -574,7 +588,11 @@ export class SyncOrchestrator extends EventEmitter {
     this.emit('state', { shareId: this.shareId, status: next, previousStatus: previous });
   }
 
-  private summarise(outcomes: SyncOutcome[], haltedByBreaker: boolean): CycleResult {
+  private summarise(
+    outcomes: SyncOutcome[],
+    haltedByBreaker: boolean,
+    serverOnline: boolean,
+  ): CycleResult {
     let applied = 0;
     let failed = 0;
     let deferred = 0;
@@ -593,6 +611,7 @@ export class SyncOrchestrator extends EventEmitter {
     }
 
     return {
+      serverOnline,
       scanned: outcomes.length,
       applied,
       failed,

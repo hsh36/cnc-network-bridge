@@ -225,6 +225,39 @@ describe('reconcile', () => {
     await sync.stop();
   });
 
+  it('records a server that goes away under a running share', async () => {
+    /*
+      The regression this exists for: `recordScan` stamped `syncing` or `idle` after
+      every cycle that did not throw, and a cycle against an unreachable server does not
+      throw — it defers. So the status column reverted to `idle` on the next tick and
+      stayed there, and everything reading it believed the share was healthy: the
+      dashboard's server link, the PRTG channels, and the failover service, whose whole
+      job is to notice exactly this.
+    */
+    const id = createShare('programs');
+    const sync = new SyncSupervisor({
+      db,
+      config,
+      // The mount is reported as gone, which is what an unmounted mount point means in
+      // production: a plain local directory whose contents are not the server's.
+      isMounted: () => false,
+      createMount: (spec) => {
+        const fake = new FakeMount(spec.shareName);
+        mounts.push(fake);
+        return fake;
+      },
+    });
+    await sync.reconcile();
+
+    expect(sync.runNow(id)).toBe(true);
+    await waitFor(
+      () => db.pluck<string>('SELECT status FROM shares WHERE id = @id', { id }) === 'offline',
+    );
+
+    expect(db.pluck<string>('SELECT status FROM shares WHERE id = @id', { id })).toBe('offline');
+    await sync.stop();
+  });
+
   it('keeps the share running when the mount fails', async () => {
     const id = createShare('programs');
     const sync = new SyncSupervisor({

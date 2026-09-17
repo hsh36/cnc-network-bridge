@@ -346,7 +346,21 @@ export class SyncSupervisor {
   private async runCycle(shareId: number, active: RunningShare): Promise<void> {
     try {
       const result = await active.orchestrator.runCycle();
-      this.recordScan(shareId, result.applied > 0 ? 'syncing' : 'idle');
+      /*
+        `offline` outranks both of the others, and used to be missing entirely.
+
+        This wrote `syncing` or `idle` after every cycle that did not throw — and a cycle
+        against an unreachable server does not throw, it defers. So the column said a
+        share was healthy while its server had been gone for a quarter of an hour, and
+        every consumer of `shares.status` believed it: the dashboard's server link, the
+        PRTG channels, and the failover service, which reads exactly this to decide
+        whether to stop accepting writes. The one condition the column exists to report
+        was the one it could not express.
+      */
+      this.recordScan(
+        shareId,
+        !result.serverOnline ? 'offline' : result.applied > 0 ? 'syncing' : 'idle',
+      );
       if (result.applied > 0) {
         this.options.logger?.info(
           { shareId, scanned: result.scanned, applied: result.applied },
