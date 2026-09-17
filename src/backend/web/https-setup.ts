@@ -1,5 +1,5 @@
 import { X509Certificate, createPrivateKey } from 'node:crypto';
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { type RequestListener } from 'node:http';
 import { createServer, type Server, type ServerOptions } from 'node:https';
 import { networkInterfaces } from 'node:os';
@@ -252,6 +252,15 @@ export function saveCertificateMaterial(dir: string, material: CertificateMateri
   }
   if (material.chainPem !== undefined) {
     writeFileSync(join(dir, fileNames.chain), material.chainPem, { mode: 0o644 });
+  } else {
+    // A certificate with no chain must not inherit the last one's.
+    //
+    // The three files are read back as a set, so leaving `chain.pem` behind pairs a
+    // fresh self-signed certificate with the intermediates of the CA-signed one it
+    // replaced. Nothing notices until the next restart — the live context was built
+    // from the material in hand — and then the server offers a chain that has nothing
+    // to do with what it is serving.
+    rmSync(join(dir, fileNames.chain), { force: true });
   }
 }
 

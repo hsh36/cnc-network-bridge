@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import { type ConflictMode } from '../../shared';
 import { useTranslation } from '../hooks/useTranslation';
 import { Checkbox, Input, Select, Textarea } from './ui/Input';
@@ -59,16 +61,21 @@ export function ShareTuning({
           onChange={(e) => onChange({ readOnly: e.target.checked })}
         />
 
+        {/* Empty means "no ceiling" here, which is a real setting rather than a gap —
+            so this one field keeps `''` as a value and reports null for it. */}
         <Input
           id="bandwidthLimit"
           label={t('bandwidth_limit')}
           hint={t('bandwidth_limit_hint')}
           type="number"
-          min="0"
+          min="1"
           value={value.bandwidthLimitKbps ?? ''}
-          onChange={(e) =>
-            onChange({ bandwidthLimitKbps: e.target.value === '' ? null : Number(e.target.value) })
-          }
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            onChange({
+              bandwidthLimitKbps: e.target.value === '' || next <= 0 ? null : next,
+            });
+          }}
           error={errors.bandwidthLimitKbps}
         />
       </Collapsible>
@@ -85,30 +92,83 @@ export function ShareTuning({
           error={errors.excludePatterns}
         />
 
-        <Input
+        <RequiredNumber
           id="maxFileSize"
           label={t('max_file_size')}
           hint={t('max_file_size_hint')}
-          type="number"
-          min="1"
+          min={1}
           value={value.maxFileSizeMb}
-          onChange={(e) => onChange({ maxFileSizeMb: Number(e.target.value) })}
+          onCommit={(next) => onChange({ maxFileSizeMb: next })}
           error={errors.maxFileSizeMb}
         />
       </Collapsible>
 
       <Collapsible title={t('advanced')} subtitle={t('advanced_hint')}>
-        <Input
+        <RequiredNumber
           id="scanInterval"
           label={t('scan_interval')}
           hint={t('scan_interval_hint')}
-          type="number"
-          min="1000"
+          min={1000}
           value={value.scanIntervalMs}
-          onChange={(e) => onChange({ scanIntervalMs: Number(e.target.value) })}
+          onCommit={(next) => onChange({ scanIntervalMs: next })}
           error={errors.scanIntervalMs}
         />
       </Collapsible>
     </div>
+  );
+}
+
+/**
+ * A number field that has no meaningful empty value.
+ *
+ * `Number('')` is `0`, so the obvious `onChange={(e) => onChange(Number(e.target.value))}`
+ * turns "select the contents and start retyping" into a zero — which the schema rejects
+ * with a 400 the operator meets on save, several fields away from the one they cleared.
+ * The `min` attribute does not help: nothing here submits a native form, so the browser
+ * never runs its constraint check.
+ *
+ * So the text being typed lives here, and only a value that parses at or above `min`
+ * reaches the form. Leaving the field empty or below the floor restores the last good
+ * one on blur, which is what makes the field look like it did the moment before.
+ */
+function RequiredNumber({
+  id,
+  label,
+  hint,
+  min,
+  value,
+  onCommit,
+  error,
+}: {
+  readonly id: string;
+  readonly label: string;
+  readonly hint: string;
+  readonly min: number;
+  readonly value: number;
+  readonly onCommit: (next: number) => void;
+  // `| undefined` for the same reason FieldProps spells it out: callers pass a
+  // possibly-undefined local straight through under exactOptionalPropertyTypes.
+  readonly error?: string | undefined;
+}): JSX.Element {
+  const [text, setText] = useState<string>();
+
+  return (
+    <Input
+      id={id}
+      label={label}
+      hint={hint}
+      type="number"
+      min={String(min)}
+      value={text ?? String(value)}
+      onChange={(e) => {
+        setText(e.target.value);
+        const next = Number(e.target.value);
+        if (e.target.value !== '' && Number.isFinite(next) && next >= min) {
+          onCommit(next);
+        }
+      }}
+      onBlur={() => setText(undefined)}
+      error={error}
+    />
   );
 }

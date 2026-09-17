@@ -172,7 +172,10 @@ export function reissueCertificateForHostname(
     return { reason: 'custom_certificate', info: current };
   }
 
-  if (covers(current, hostname)) {
+  // The name *and* every address the caller wants vouched for. Checking only the name
+  // would call an address-only change "already covered" and send the operator to an
+  // address the certificate does not carry — the same dead end, one field over.
+  if (covers(current, [hostname, ...additionalSans])) {
     return { reason: 'already_covered', info: current };
   }
 
@@ -180,11 +183,20 @@ export function reissueCertificateForHostname(
     const material = generateSelfSignedCertificate({
       commonName: hostname,
       validityYears: validityYearsOf(current),
-      // The new address is passed in rather than read from `os.networkInterfaces()`:
-      // the interface may not have finished coming up on it yet, and a certificate that
-      // misses the very address the operator was told to browse to is the one failure
-      // this function exists to prevent.
-      additionalSans: [hostname, ...additionalSans],
+      // Everything the outgoing certificate spoke for, plus what is new.
+      //
+      // The new address is passed in rather than left to `os.networkInterfaces()`,
+      // which `generateSelfSignedCertificate` reads for itself: the interface may not
+      // have finished coming up on it yet, and a certificate that misses the very
+      // address the operator was told to browse to is the failure this exists to
+      // prevent.
+      //
+      // The old names are carried over for the mirror image of that. An unconfirmed
+      // apply reverts the addressing after five minutes, and the operator then arrives
+      // on the *old* address — with a certificate naming only the new one, if this
+      // rebuilt the list from scratch. It also keeps whatever an operator added by hand
+      // on an earlier `certificates.regenerate`, which nothing else remembers.
+      additionalSans: [hostname, ...additionalSans, ...current.subjectAltNames],
     });
     const info = installCertificate(ctx, material, 'certificates.reissue', undefined);
     ctx.logger?.info(
@@ -201,10 +213,10 @@ export function reissueCertificateForHostname(
   }
 }
 
-/** Whether `hostname` is already one of the names the certificate speaks for. */
-function covers(info: CertificateInfo, hostname: string): boolean {
-  const wanted = hostname.toLowerCase();
-  return info.subjectAltNames.some((name) => name.toLowerCase() === wanted);
+/** Whether the certificate already speaks for every one of `wanted`. */
+function covers(info: CertificateInfo, wanted: readonly string[]): boolean {
+  const known = new Set(info.subjectAltNames.map((name) => name.toLowerCase()));
+  return wanted.every((name) => known.has(name.toLowerCase()));
 }
 
 /**

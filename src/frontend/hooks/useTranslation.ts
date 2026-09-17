@@ -53,12 +53,30 @@ export function useLanguage(): UseLanguageResult {
   const i18n = getI18n();
   const [language, setLanguageState] = useState<LanguageCode>(i18n.getLanguage());
 
-  const setLanguage = useCallback((lang: LanguageCode) => {
-    i18n.setLanguage(lang);
-    setLanguageState(lang);
-    // Trigger re-render of all components using translations
-    window.dispatchEvent(new Event('storage'));
-  }, []);
+  /*
+    The same listener `useTranslation` has, and for the same reason.
+
+    Without it this hook reports whatever the language was when the component mounted,
+    for ever. That is not a cosmetic staleness: callers use `language` to pick the right
+    half of a localised backend message (`{ de, en }` from the SMB tester), so a dialog
+    left open across a language switch shows a German diagnosis in an English interface
+    — precisely the bug that replacing a hard-coded `.de` was meant to fix.
+  */
+  useEffect(() => {
+    const onChange = (): void => setLanguageState(i18n.getLanguage());
+    window.addEventListener('storage', onChange);
+    return () => window.removeEventListener('storage', onChange);
+  }, [i18n]);
+
+  const setLanguage = useCallback(
+    (lang: LanguageCode) => {
+      i18n.setLanguage(lang);
+      setLanguageState(lang);
+      // Trigger re-render of all components using translations
+      window.dispatchEvent(new Event('storage'));
+    },
+    [i18n],
+  );
 
   return {
     language,

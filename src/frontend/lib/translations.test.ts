@@ -171,6 +171,28 @@ describe('translation bundles', () => {
     expect(enKeys.filter((k) => !deKeys.includes(k))).toEqual([]);
   });
 
+  it('writes placeholders the way parseTranslation substitutes them', () => {
+    /*
+      Single braces, never double.
+
+      `parseTranslation` replaces `{name}`. Given `{{name}}` it matches the inner pair
+      and leaves the outer braces behind, so the screen reads `{Programs} — settings`.
+      Three keys were written in the Handlebars style the backend templates use and
+      shipped that way, because nothing compared the two conventions.
+    */
+    const doubled: string[] = [];
+    for (const [language, bundle] of Object.entries(bundles)) {
+      for (const [namespace, entries] of Object.entries(bundle)) {
+        for (const [key, value] of Object.entries(entries)) {
+          if (typeof value === 'string' && /\{\{[^}]+\}\}/.test(value)) {
+            doubled.push(`${language}.${namespace}.${key}`);
+          }
+        }
+      }
+    }
+    expect(doubled).toEqual([]);
+  });
+
   it('has no empty string standing in for a translation', () => {
     const empty: string[] = [];
     for (const [language, bundle] of Object.entries(bundles)) {

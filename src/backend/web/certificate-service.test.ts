@@ -170,6 +170,46 @@ describe('reissueCertificateForHostname', () => {
     expect(reissueCertificateForHostname(ctx, 'bridge-01').reason).toBe('already_covered');
   });
 
+  it('reissues for a new address even when the name is unchanged', () => {
+    // An apply that moves the appliance to a new static address without renaming it.
+    // Judging coverage by the name alone would call this "already covered" and send the
+    // operator to an address the certificate does not carry — the same dead end as a
+    // stale name, one field over.
+    saveCertificateMaterial(certDir, generateSelfSignedCertificate({ commonName: 'bridge-01' }));
+
+    const outcome = reissueCertificateForHostname(ctx, 'bridge-01', ['10.20.30.40']);
+
+    expect(outcome.reason).toBe('reissued');
+    expect(outcome.info?.subjectAltNames).toContain('10.20.30.40');
+  });
+
+  it('carries the old certificate’s names over to the new one', () => {
+    // An unconfirmed apply reverts the addressing after five minutes, and the operator
+    // then arrives back on the old address. A certificate rebuilt from scratch would
+    // name only the new one. Operator-added SANs from an earlier manual regenerate ride
+    // along for the same reason: nothing else remembers them.
+    saveCertificateMaterial(
+      certDir,
+      generateSelfSignedCertificate({
+        commonName: 'old-name',
+        additionalSans: ['10.0.0.9', 'bridge.plant.example'],
+      }),
+    );
+
+    const outcome = reissueCertificateForHostname(ctx, 'new-name', ['10.20.30.40']);
+
+    expect(outcome.reason).toBe('reissued');
+    expect(outcome.info?.subjectAltNames).toEqual(
+      expect.arrayContaining([
+        'new-name',
+        '10.20.30.40',
+        'old-name',
+        '10.0.0.9',
+        'bridge.plant.example',
+      ]),
+    );
+  });
+
   it('keeps the previous certificate in force when the live server refuses the new one', () => {
     const previous = generateSelfSignedCertificate({ commonName: 'old-name' });
     saveCertificateMaterial(certDir, previous);

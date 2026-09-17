@@ -62,6 +62,24 @@ describe('generateSelfSignedCertificate', () => {
   });
 });
 
+describe('saveCertificateMaterial', () => {
+  it('removes a chain that the new certificate does not have', () => {
+    // The three files are read back as a set. Leaving chain.pem behind pairs a fresh
+    // self-signed certificate with the intermediates of the CA-signed one it replaced —
+    // invisible until the next restart, because the live context was built from the
+    // material in hand rather than from disk.
+    const dir = tmpDir('tls-chain-');
+    const withChain = generateSelfSignedCertificate({ commonName: 'a.local' });
+    saveCertificateMaterial(dir, { ...withChain, chainPem: withChain.certPem });
+    expect(existsSync(join(dir, 'chain.pem'))).toBe(true);
+
+    saveCertificateMaterial(dir, generateSelfSignedCertificate({ commonName: 'b.local' }));
+
+    expect(existsSync(join(dir, 'chain.pem'))).toBe(false);
+    expect(loadCertificateMaterial(dir).chainPem).toBeUndefined();
+  });
+});
+
 describe('describeCertificate', () => {
   it('throws a CertificateError for unparsable input', () => {
     expect(() => describeCertificate('not a certificate')).toThrow(CertificateError);
