@@ -320,6 +320,16 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
     run: privilegedStatusRunner(invokePrivileged),
   });
 
+  /*
+    The last thing `smbstatus` said, for `/health` to report.
+
+    Written by the lock reconciler below because that loop already runs the command every
+    few seconds; `null` until it has run once, which is "not asked yet" rather than
+    "failing". Probing from the route instead would put a second command where one
+    already is, for an answer that cannot be fresher than the loop producing it.
+  */
+  let sambaResponding: boolean | null = null;
+
   // The two update schedules are projections of the config sections, not rows an
   // operator maintains by hand. See managed-schedules.ts for why one owner and not two.
   const managedSchedules = new ManagedSchedules({
@@ -453,6 +463,7 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
       shareCacheRoot: createShareCacheRootResolver(service.db),
       sync,
       samba,
+      sambaResponding: () => sambaResponding,
       failover,
       updates,
       osUpdates,
@@ -547,7 +558,9 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
         reconciling = true;
         void (async () => {
           try {
-            lockSource.reconcile(await sambaService.statusOrNull());
+            const smbStatus = await sambaService.statusOrNull();
+            sambaResponding = smbStatus !== null;
+            lockSource.reconcile(smbStatus);
             for (const expired of locks.expireStale()) {
               logger.info({ lockId: expired.id, path: expired.relPath }, 'stale lock expired');
             }

@@ -110,6 +110,24 @@ describe('unauthenticated access', () => {
     expect(res.body.data.checks.database).toBe(true);
   });
 
+  it('does not call Samba failing before anything has asked it', async () => {
+    // This check used to be a hard-coded `false`, so every appliance reported a
+    // permanently broken Samba on the screen an operator consults to find out whether
+    // anything is wrong. A check that is always red is one people learn to ignore.
+    const res = await request(app).get('/api/v1/health');
+    expect(res.body.data.checks.samba).toBe(true);
+  });
+
+  it('reports Samba as failing once a probe has actually failed', async () => {
+    const withProbe = createApp({ ...ctx, sambaResponding: () => false });
+    const res = await request(withProbe).get('/api/v1/health');
+
+    expect(res.body.data.checks.samba).toBe(false);
+    // Not part of the verdict the updater's health gate reads: smbd being down is an
+    // operations problem, and rolling a good release back will not fix it.
+    expect(res.body.data.status).toBe('ok');
+  });
+
   it('serves /setup/status without auth', async () => {
     const res = await request(app).get('/api/v1/setup/status');
     expect(res.status).toBe(200);

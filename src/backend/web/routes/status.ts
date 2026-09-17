@@ -79,7 +79,28 @@ export function statusRoutes(ctx: AppContext): Router {
     const database = ctx.db.isOpen;
     const migrations = (ctx.db.pluck<number>('PRAGMA user_version') ?? 0) > 0;
     const httpServer = true;
-    const samba = false; // T12/T13 (smb.conf generation and service control) are not wired up yet.
+    /*
+      Reported from the lock reconciler's last `smbstatus`, not probed here.
+
+      This stood at a hard-coded `false` with a comment saying smb.conf generation was
+      not wired up yet. It has been for a long time — so every appliance ever shipped
+      reported a permanently failing Samba check, on the one screen an operator consults
+      to find out whether anything is wrong. A check that is always red is a check people
+      learn to ignore, which costs more than not having it.
+
+      `null` (no probe yet) counts as not-failing: a service that has been up for three
+      seconds has not found a problem, it has not looked.
+    */
+    const samba = (ctx.sambaResponding?.() ?? null) !== false;
+    /*
+      Samba is deliberately outside this AND.
+
+      `/health` is what the updater's gate polls, and a green gate means "the new release
+      came up", not "the whole plant is well". smbd being down is an operations problem
+      the dashboard and the metrics both report; making it fail the gate would roll back
+      a perfectly good release over a condition the release did not cause and a rollback
+      will not fix.
+    */
     const allOk = database && migrations && httpServer;
 
     res.status(200).json({

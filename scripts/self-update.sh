@@ -92,9 +92,38 @@ fail() {
   exit 1
 }
 
+# For a refusal that happened before anything was touched.
+#
+# `fail` reaches for the rollback, which rebuilds the previous ref — the very work that
+# was just found to be impossible. Attempting it would destroy the intact installation
+# in order to recover from a failure that had not damaged it.
+fail_intact() {
+  local message="$1"
+  echo "[self-update] REFUSED: $message" >&2
+  report failed 100 "$message"
+  exit 1
+}
+
 # ---------------------------------------------------------------------------
 # The update itself
 # ---------------------------------------------------------------------------
+
+# Prove the npm registry answers before anything is torn down.
+#
+# `npm ci` deletes node_modules and *then* fetches. If the fetch cannot start — the
+# registry unreachable, a proxy down, the plant's uplink out — the appliance is left
+# with a source tree and no dependencies. The running process survives, because it is
+# already in memory, so nothing looks wrong until the next restart: a reboot, an OS
+# update, a watchdog. Then the service does not come up, and the rollback cannot help
+# either, because restoring the previous ref runs the same `npm ci` against the same
+# unreachable registry.
+#
+# One reachability check turns that into a refusal that changes nothing. Checked once,
+# before the first build, because the rollback path only runs after a build that got
+# far enough to prove the registry was there.
+require_registry() {
+  (cd "$INSTALL_DIR" && timeout 30 npm ping --no-audit --fund=false) > /dev/null 2>&1
+}
 
 build_at() {
   local ref="$1"
@@ -138,13 +167,18 @@ wait_for_health() {
 
 report downloading 0 ""
 git -C "$INSTALL_DIR" fetch --quiet --tags --force origin ||
-  fail "Could not fetch from GitHub"
+  fail_intact "Could not fetch from GitHub"
 
 report verifying 20 ""
 git -C "$INSTALL_DIR" rev-parse --verify --quiet "${TARGET_REF}^{commit}" > /dev/null ||
-  fail "Release $TARGET_REF does not exist in the repository"
+  fail_intact "Release $TARGET_REF does not exist in the repository"
 
 report installing 40 ""
+# Before build_at, which is where node_modules is deleted. Everything up to this point
+# only reads, so every step above refuses the same way: nothing to undo, and nothing to
+# be gained by rebuilding a tree that was never touched.
+require_registry ||
+  fail_intact "The npm registry did not answer; nothing was changed. Check the appliance's internet access and try again."
 build_at "$TARGET_REF" || fail "Build failed for $TARGET_REF"
 
 report restarting 80 ""

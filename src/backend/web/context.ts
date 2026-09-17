@@ -69,6 +69,15 @@ export interface AppContext {
    */
   readonly samba?: SambaConfigManager;
   /**
+   * Whether the last `smbstatus` probe answered, or `null` before the first one.
+   *
+   * `/health` reports it, and it is a *reading* rather than a probe on purpose: the lock
+   * reconciler already runs `smbstatus` every few seconds, and the update gate polls
+   * `/health` every three. Shelling out per request would put two commands where one
+   * already is, for an answer that cannot be fresher than the loop that produces it.
+   */
+  readonly sambaResponding?: () => boolean | null;
+  /**
    * Present in the running service; absent in tests that only exercise routes.
    *
    * `/status` asks it why writes are being held, which is the one place an operator can
