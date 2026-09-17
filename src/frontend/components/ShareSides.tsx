@@ -38,6 +38,9 @@ export interface ShareSidesValue {
   readonly machinePassword: string;
 }
 
+/** Shown in place of a stored password: visible, and not a value that can be saved. */
+const STORED_PASSWORD_PLACEHOLDER = '••••••••';
+
 export interface ShareSidesProps {
   readonly value: ShareSidesValue;
   readonly onChange: (patch: Partial<ShareSidesValue>) => void;
@@ -47,6 +50,16 @@ export interface ShareSidesProps {
   readonly errors?: Record<string, string>;
   /** True once a password is stored, so the field can offer "leave unchanged". */
   readonly passwordStored?: boolean;
+  /** The same, for the account the machines authenticate as. */
+  readonly machinePasswordStored?: boolean;
+  /**
+   * The saved share this form is editing, if any.
+   *
+   * Sent with the connectivity test so the server can use the stored password. Without
+   * it the test of a saved share has a username and no password, which fails for a
+   * reason that has nothing to do with connectivity.
+   */
+  readonly shareId?: number;
 }
 
 /**
@@ -80,6 +93,8 @@ export function ShareSides({
   nameEditable,
   errors = {},
   passwordStored = false,
+  machinePasswordStored = false,
+  shareId,
 }: ShareSidesProps): JSX.Element {
   const t = useTranslation('shares');
   const { language } = useLanguage();
@@ -92,6 +107,7 @@ export function ShareSides({
     api('config.testSmb', {
       body: {
         unc: value.serverUnc.trim(),
+        ...(shareId === undefined ? {} : { shareId }),
         ...(value.smbDomain.trim() === '' ? {} : { domain: value.smbDomain.trim() }),
         ...(value.smbUser.trim() === '' ? {} : { username: value.smbUser.trim() }),
         ...(value.smbPassword === '' ? {} : { password: value.smbPassword }),
@@ -165,6 +181,13 @@ export function ShareSides({
             // from "unchanged" — the hint has to distinguish them or an operator
             // clearing the field would not know which they were doing.
             hint={passwordStored ? t('smb_password_stored') : t('smb_password_hint')}
+            /*
+              A placeholder, never a value. Filling the field with asterisks would invite
+              an operator to select-all and retype, and a form submitted untouched would
+              store the asterisks. As a placeholder it says "there is one" and submits
+              nothing.
+            */
+            placeholder={passwordStored ? STORED_PASSWORD_PLACEHOLDER : undefined}
             value={value.smbPassword}
             onChange={(e) => onChange({ smbPassword: e.target.value })}
           />
@@ -269,7 +292,10 @@ export function ShareSides({
                 label={t('machine_password')}
                 type="password"
                 autoComplete="new-password"
-                hint={passwordStored ? t('machine_password_stored') : t('machine_password_hint')}
+                hint={
+                  machinePasswordStored ? t('machine_password_stored') : t('machine_password_hint')
+                }
+                placeholder={machinePasswordStored ? STORED_PASSWORD_PLACEHOLDER : undefined}
                 value={value.machinePassword}
                 onChange={(e) => onChange({ machinePassword: e.target.value })}
               />

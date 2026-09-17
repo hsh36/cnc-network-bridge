@@ -117,6 +117,9 @@ function toShare(row: ShareRow): Share {
     lastError: row.last_error,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    // Presence only. The envelopes stay on the appliance.
+    hasSmbPassword: row.smb_password !== null && row.smb_password !== '',
+    hasMachinePassword: row.machine_password !== null && row.machine_password !== '',
   };
 }
 

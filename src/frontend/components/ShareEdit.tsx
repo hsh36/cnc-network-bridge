@@ -176,7 +176,11 @@ export function ShareEdit({ shareId, onClose, onRefresh }: ShareEditProps): JSX.
             value={form}
             onChange={(patch) => setForm({ ...form, ...patch })}
             nameEditable={false}
-            passwordStored={share.data.smbUser !== null}
+            // The real answer now, rather than inferring it from the username: a share
+            // can have an account with no password stored, and did read as "stored".
+            passwordStored={share.data.hasSmbPassword}
+            machinePasswordStored={share.data.hasMachinePassword}
+            shareId={share.data.id}
           />
 
           <Card>

@@ -39,6 +39,14 @@ export const testSmbRequestSchema = z
   .object({
     /** Defaults to the configured service account when omitted. */
     unc: uncPathSchema,
+    /**
+     * The share being tested, when it is a saved one.
+     *
+     * Supplies the credentials the client cannot: an edit form shows the username but
+     * never the password, so testing a stored share used to send a username and nothing
+     * else — which is an authentication failure dressed up as a connectivity test.
+     */
+    shareId: z.number().int().positive().optional(),
     domain: z.string().max(255).optional(),
     username: z.string().max(255).optional(),
     password: secretWriteSchema.optional(),

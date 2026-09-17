@@ -200,6 +200,35 @@ describe('POST /config/test/smb', () => {
     expect(body.data.message.en.length).toBeGreaterThan(0);
   }, 40_000);
 
+  it('accepts a share id, which is how a saved share gets its stored password', async () => {
+    // An edit form shows the username and never the password, so testing a saved share
+    // used to send a username and nothing else — an authentication failure wearing a
+    // connectivity failure's clothes.
+    const { agent, csrf } = await loginAgent();
+
+    const res = await agent
+      .post('/api/v1/config/test/smb')
+      .set('x-csrf-token', csrf)
+      .send({ unc: '//198.51.100.1/nothing', shareId: 1 })
+      .expect(200);
+
+    expect((res.body as TestBody).data.success).toBe(false);
+  }, 40_000);
+
+  it('falls through to the global account when the share is gone', async () => {
+    // Deleted between opening the form and pressing the button. That is a fallback, not
+    // a 500 at someone who pressed "test".
+    const { agent, csrf } = await loginAgent();
+
+    const res = await agent
+      .post('/api/v1/config/test/smb')
+      .set('x-csrf-token', csrf)
+      .send({ unc: '//198.51.100.1/nothing', shareId: 9999 })
+      .expect(200);
+
+    expect((res.body as TestBody).data.success).toBe(false);
+  }, 40_000);
+
   it('records the attempt in the audit log', async () => {
     const { agent, csrf } = await loginAgent();
 

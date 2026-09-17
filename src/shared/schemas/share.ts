@@ -54,6 +54,17 @@ export const shareSchema = z.object({
   lastError: z.string().nullable(),
   createdAt: unixSecondsSchema,
   updatedAt: unixSecondsSchema,
+  /**
+   * Whether a password is stored, not what it is.
+   *
+   * The passwords themselves never leave the appliance, which left the edit form unable
+   * to say anything at all about them: an empty field looked the same whether the share
+   * had a stored credential or none. These two booleans are what lets it show a
+   * placeholder that means "there is one — leave this alone unless you are replacing
+   * it". A boolean reveals nothing a failed connection test would not.
+   */
+  hasSmbPassword: z.boolean(),
+  hasMachinePassword: z.boolean(),
 });
 
 export type Share = z.infer<typeof shareSchema>;

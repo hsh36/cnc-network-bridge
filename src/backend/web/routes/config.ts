@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { configSectionNameSchema, SECRET_SENTINEL, testSmbRequestSchema } from '../../../shared';
 import { rateLimit } from '../../security/rate-limit';
 import { testSmbConnection } from '../../smb/tester';
+import { ShareStore } from '../../sync/share-store';
 import { type AppContext } from '../context';
 import { asyncHandler, ok, requireCsrf, requireSession } from '../middleware';
 
@@ -12,6 +13,25 @@ import { asyncHandler, ok, requireCsrf, requireSession } from '../middleware';
  * idempotent, the secrets are already redacted to the sentinel by the config manager,
  * and auditing every dashboard poll would bury the entries that matter under noise.
  */
+
+/**
+ * The password stored against a share, or undefined when there is none.
+ *
+ * Wrapped rather than called inline because a share that has been deleted between the
+ * form being opened and the button being pressed must fall through to the global
+ * account, not throw a 500 at someone pressing "test".
+ */
+function sharePassword(ctx: AppContext, shareId: number | undefined): string | undefined {
+  if (shareId === undefined) {
+    return undefined;
+  }
+  try {
+    return new ShareStore({ db: ctx.db, config: ctx.config }).password(shareId);
+  } catch {
+    return undefined;
+  }
+}
+
 export function configRoutes(ctx: AppContext): Router {
   const router = Router();
 
@@ -58,18 +78,30 @@ export function configRoutes(ctx: AppContext): Router {
       const body = testSmbRequestSchema.parse(req.body);
       const credentials = ctx.config.get('smb').server.credentials;
 
+      /*
+        Three sources, in order of how specific they are.
+
+        Typed into the form wins, because that is someone trying out a new credential.
+        Failing that, the share's own stored password — which is the case that was
+        missing: an edit form can show a username but never a password, so testing a
+        saved share sent a username and nothing else, and what came back was an
+        authentication failure that read like a network problem. Failing both, the global
+        service account, which is what makes the button useful on a share whose own
+        credentials have not been filled in yet.
+      */
+      const typedIn = body.password !== undefined && body.password !== SECRET_SENTINEL;
+      // The sentinel means "the stored one": a client testing a share it fetched has
+      // never held the plaintext and cannot send it.
+      const password = typedIn
+        ? body.password
+        : (sharePassword(ctx, body.shareId) ??
+          ctx.config.getSecret('smb.server.credentials.password'));
+
       const result = await testSmbConnection({
         unc: body.unc,
-        // Falls back to the configured service account, which is what makes the button
-        // useful on a share whose own credentials have not been filled in yet.
         domain: body.domain ?? credentials.domain,
         username: body.username ?? credentials.username,
-        // The sentinel means "the stored one": a client testing a share it fetched has
-        // never held the plaintext and cannot send it.
-        password:
-          body.password === undefined || body.password === SECRET_SENTINEL
-            ? ctx.config.getSecret('smb.server.credentials.password')
-            : body.password,
+        ...(password === undefined ? {} : { password }),
         ...(body.smbVersion === undefined ? {} : { smbVersion: body.smbVersion }),
         ...(body.seal === undefined ? {} : { seal: body.seal }),
         probeWrite: false,
