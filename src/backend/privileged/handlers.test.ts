@@ -444,6 +444,71 @@ describe('apply-network', () => {
     expect(parseConnectionName('no colon here\n')).toBeUndefined();
   });
 
+  describe('the hostname', () => {
+    const HOSTS = '/etc/hosts';
+    const named = { ...base, hostname: 'bridge-hall-2' };
+
+    it('points 127.0.1.1 at the new name', () => {
+      /*
+         changes what the system calls itself and nothing else. Found on a
+        freshly installed appliance whose image carried one name and whose setup wizard
+        was given another: every sudo call — and the helper is called for every mount,
+        every smbstatus, every lock — printed
+
+            sudo: unable to resolve host hsh-smbbridge01
+
+        because nothing resolved the new name. Debian's convention is a 127.0.1.1 line,
+        and keeping it in step is the fix.
+      */
+      const h = harness();
+      h.fs.files.set(HOSTS, '127.0.1.1\told-name\n127.0.0.1\tlocalhost\n');
+
+      execute(build(named), h.deps);
+
+      expect(h.fs.files.get(HOSTS)).toBe('127.0.1.1\tbridge-hall-2\n127.0.0.1\tlocalhost\n');
+    });
+
+    it('leaves every other line alone', () => {
+      // The IPv6 block and any entries an operator added by hand are none of our business.
+      const h = harness();
+      const others = '127.0.0.1\tlocalhost\n::1\tlocalhost ip6-localhost\n10.0.0.9\tfileserver\n';
+      h.fs.files.set(HOSTS, `127.0.1.1\told-name\n${others}`);
+
+      execute(build(named), h.deps);
+
+      expect(h.fs.files.get(HOSTS)).toBe(`127.0.1.1\tbridge-hall-2\n${others}`);
+    });
+
+    it('adds the line when the file has none', () => {
+      const h = harness();
+      h.fs.files.set(HOSTS, '127.0.0.1\tlocalhost\n');
+
+      execute(build(named), h.deps);
+
+      expect(h.fs.files.get(HOSTS)).toBe('127.0.1.1\tbridge-hall-2\n127.0.0.1\tlocalhost\n');
+    });
+
+    it('does not touch the file when no hostname was asked for', () => {
+      // Most applies are addressing only, and rewriting /etc/hosts on each of them would
+      // be a change with no reason behind it.
+      const h = harness();
+      h.fs.files.set(HOSTS, '127.0.1.1\tuntouched\n');
+
+      execute(build(base), h.deps);
+
+      expect(h.fs.files.get(HOSTS)).toBe('127.0.1.1\tuntouched\n');
+    });
+
+    it('still applies the addressing when /etc/hosts cannot be read', () => {
+      // The hostname is already set by then, and refusing the whole apply over a
+      // resolver hint would be the larger harm.
+      const h = harness();
+
+      expect(() => execute(build(named), h.deps)).not.toThrow();
+      expect(h.calls.some((argv) => argv.includes('set-hostname'))).toBe(true);
+    });
+  });
+
   it('creates a profile when the interface has none, instead of refusing', () => {
     // A NIC that has never been configured has no profile to modify, which is the state
     // every appliance's second interface ships in. Refusing made the TNC side impossible

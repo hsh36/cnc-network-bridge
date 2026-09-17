@@ -601,6 +601,7 @@ function applyNetwork(
   // client without a reboot.
   if (request.hostname !== '') {
     log.exec([deps.resolve('hostnamectl'), 'set-hostname', request.hostname]);
+    writeHostsEntry(request.hostname, deps);
   }
 
   if (request.revertAfterSeconds > 0) {
@@ -628,6 +629,74 @@ function applyNetwork(
       hostname: request.hostname,
     },
   };
+}
+
+/** Debian puts the machine's own name on this address, not on 127.0.0.1. */
+const HOSTS_PATH = '/etc/hosts';
+const SELF_ADDRESS = '127.0.1.1';
+
+/**
+ * Points `127.0.1.1` at the new hostname.
+ *
+ * `hostnamectl` changes what the system calls itself and nothing else. Anything that then
+ * resolves that name — `sudo` on every single call, and therefore every privileged
+ * operation this bridge performs — asks the resolver, gets nothing, and says so:
+ *
+ *     sudo: unable to resolve host hsh-smbbridge01: Temporary failure in name resolution
+ *
+ * Found on a freshly installed appliance, where the image had been given one name and the
+ * setup wizard another. It is a warning rather than a failure, and on a box with no
+ * reachable DNS it costs almost nothing — but on one with a resolver that is reachable
+ * and slow, every sudo call waits for that lookup to time out, and the helper is called
+ * for mounts, for smbstatus, for every lock. Debian's convention is a `127.0.1.1` line
+ * naming the host, and keeping it in step is the whole fix.
+ *
+ * Deliberately forgiving: a missing or unreadable /etc/hosts leaves the applied network
+ * configuration alone rather than failing it. The hostname is already set by this point,
+ * and refusing the whole apply over a resolver hint would be the larger harm.
+ *
+ * Note for anyone debugging this later: on an image where cloud-init has
+ * `manage_etc_hosts: true`, cloud-init rewrites this file from its own template on boot.
+ * The line written here is correct until then.
+ */
+function writeHostsEntry(hostname: string, deps: HandlerDeps): void {
+  let current: string;
+  try {
+    current = deps.fs.readText(HOSTS_PATH);
+  } catch {
+    return;
+  }
+
+  const lines = current.split('\n');
+  const rewritten: string[] = [];
+  let replaced = false;
+
+  for (const line of lines) {
+    // Only the self-address line, and only when it is that line rather than a comment
+    // that happens to mention the address.
+    if (!replaced && /^\s*127\.0\.1\.1\s/.test(line)) {
+      rewritten.push(`${SELF_ADDRESS}	${hostname}`);
+      replaced = true;
+      continue;
+    }
+    rewritten.push(line);
+  }
+
+  if (!replaced) {
+    // No such line yet: put it above the first entry so it reads like the Debian default.
+    rewritten.unshift(`${SELF_ADDRESS}	${hostname}`);
+  }
+
+  const next = rewritten.join('\n');
+  if (next === current) {
+    return;
+  }
+
+  try {
+    deps.fs.writeAtomic(HOSTS_PATH, next, 0o644);
+  } catch {
+    // Same reasoning as above: the addressing change has already been applied.
+  }
 }
 
 // ---------------------------------------------------------------------------
