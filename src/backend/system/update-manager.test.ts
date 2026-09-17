@@ -166,6 +166,10 @@ describe('check', () => {
     // product was renamed, and the stored row kept pointing at the old repository —
     // where the default could never take over, because the row existed. The check then
     // asked GitHub about a repository that was no longer there, every night, quietly.
+    //
+    // The stale value below is the real one this project used to carry, which is what
+    // makes the test a fair test: `cnc-network-bridge` is where the repository lived
+    // before the rename to `smb-bridge`.
     const seen: string[] = [];
     const spy = ((url: string) => {
       seen.push(url);
@@ -174,14 +178,14 @@ describe('check', () => {
 
     db.run(
       `INSERT INTO config (key, value, is_secret, updated_at, updated_by)
-         VALUES ('updates.githubRepo', '"hsh36/tnc-bridge"', 0, 0, 'test')`,
+         VALUES ('updates.githubRepo', '"hsh36/cnc-network-bridge"', 0, 0, 'test')`,
     );
 
     const updates = manager(spy);
     await updates.check();
 
     expect(seen[0]).toContain(`/repos/${GITHUB_REPO}/releases`);
-    expect(seen[0]).not.toContain('tnc-bridge');
+    expect(seen[0]).not.toContain('cnc-network-bridge');
   });
 });
 

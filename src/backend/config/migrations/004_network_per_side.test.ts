@@ -62,7 +62,7 @@ describe('004_network_per_side', () => {
     runMigrations(db);
 
     expect(readConfig('network.lan.mtu')).toBe('9000');
-    expect(readConfig('network.tnc.mtu')).toBe('9000');
+    expect(readConfig('network.machine.mtu')).toBe('9000');
   });
 
   it('carries the IPv6 switch onto both sides and drops its old nesting', () => {
@@ -72,7 +72,7 @@ describe('004_network_per_side', () => {
     runMigrations(db);
 
     expect(readConfig('network.lan.ipv6')).toBe('true');
-    expect(readConfig('network.tnc.ipv6')).toBe('true');
+    expect(readConfig('network.machine.ipv6')).toBe('true');
     expect(readConfig('network.ipv6.enabled')).toBeUndefined();
   });
 
@@ -84,7 +84,7 @@ describe('004_network_per_side', () => {
 
     // Without this the new schema's DHCP default would take over a segment where
     // nothing serves DHCP until the operator switches it on.
-    expect(readConfig('network.tnc.method')).toBe('"static"');
+    expect(readConfig('network.machine.method')).toBe('"static"');
   });
 
   it('removes the superseded keys so they cannot contradict the live values', () => {
@@ -119,10 +119,10 @@ describe('004_network_per_side', () => {
     const network = config.get('network');
 
     expect(network.lan.mtu).toBe(9000);
-    expect(network.tnc.mtu).toBe(9000);
+    expect(network.machine.mtu).toBe(9000);
     expect(network.lan.ipv6).toBe(true);
     expect(network.lan.interface).toBe('enp1s0');
-    expect(network.tnc.method).toBe('static');
-    expect(network.tnc.address).toBe('10.9.0.1/24');
+    expect(network.machine.method).toBe('static');
+    expect(network.machine.address).toBe('10.9.0.1/24');
   });
 });

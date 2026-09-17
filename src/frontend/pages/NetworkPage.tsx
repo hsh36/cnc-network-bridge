@@ -109,7 +109,7 @@ function NetworkSideFields({
   errors,
   onChange,
 }: {
-  readonly side: 'lan' | 'tnc';
+  readonly side: 'lan' | 'machine';
   readonly value: NetworkSide;
   readonly interfaces: readonly InterfaceDiscovery[];
   readonly errors: Record<string, string>;
@@ -148,8 +148,8 @@ function NetworkSideFields({
           server name the machines dial. */}
       <Input
         id={`${side}Hostname`}
-        label={side === 'lan' ? t('lan_hostname') : t('tnc_hostname')}
-        hint={side === 'lan' ? t('lan_hostname_hint') : t('tnc_hostname_hint')}
+        label={side === 'lan' ? t('lan_hostname') : t('machine_hostname')}
+        hint={side === 'lan' ? t('lan_hostname_hint') : t('machine_hostname_hint')}
         placeholder={t('hostname_placeholder')}
         value={value.hostname}
         onChange={(e) => set({ hostname: e.target.value })}
@@ -245,9 +245,9 @@ function InterfaceSections(): JSX.Element {
   const [form, setForm] = useState<NetworkConfig>();
   const [saved, setSaved] = useState<NetworkConfig>();
   const [interfaces, setInterfaces] = useState<InterfaceDiscovery[]>([]);
-  const [busy, setBusy] = useState<'lan' | 'tnc'>();
+  const [busy, setBusy] = useState<'lan' | 'machine'>();
   const [applyingLan, setApplyingLan] = useState(false);
-  const [notice, setNotice] = useState<{ side: 'lan' | 'tnc'; text: string }>();
+  const [notice, setNotice] = useState<{ side: 'lan' | 'machine'; text: string }>();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { banner, onSaved, onError } = useSaveBanner(t);
 
@@ -281,7 +281,7 @@ function InterfaceSections(): JSX.Element {
 
   // Dirtiness is per side now, because the buttons are: one zone must not be greyed out
   // because the other has unsaved edits.
-  const dirty = (side: 'lan' | 'tnc'): boolean =>
+  const dirty = (side: 'lan' | 'machine'): boolean =>
     form !== undefined &&
     saved !== undefined &&
     JSON.stringify(form[side]) !== JSON.stringify(saved[side]);
@@ -297,7 +297,7 @@ function InterfaceSections(): JSX.Element {
    * NIC does not carry counts as drift, because DHCP is *supposed* to disagree with a
    * blank field.
    */
-  const driftedSide = (side: 'lan' | 'tnc'): boolean => {
+  const driftedSide = (side: 'lan' | 'machine'): boolean => {
     if (form === undefined || saved === undefined) {
       return false;
     }
@@ -315,9 +315,9 @@ function InterfaceSections(): JSX.Element {
   };
 
   const driftedLan = driftedSide('lan');
-  const driftedTnc = driftedSide('tnc');
+  const driftedTnc = driftedSide('machine');
 
-  const anyDirty = dirty('lan') || dirty('tnc');
+  const anyDirty = dirty('lan') || dirty('machine');
   useEffect(() => {
     window.onbeforeunload = anyDirty ? () => true : null;
     return () => {
@@ -334,7 +334,7 @@ function InterfaceSections(): JSX.Element {
    * zone necessarily carries the other zone's current form values with it, so both are
    * validated either way.
    */
-  const saveSide = (side: 'lan' | 'tnc'): void => {
+  const saveSide = (side: 'lan' | 'machine'): void => {
     const validationErrors = validateConfigSection('network', form);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -353,11 +353,11 @@ function InterfaceSections(): JSX.Element {
         // there is nothing to lose by acting and nothing for the operator to confirm.
         // The LAN side is the one that can cut this connection and waits for its own
         // button, so a half-typed address cannot take the bridge away.
-        if (side === 'tnc') {
-          return api('network.apply', { body: { side: 'tnc' } })
+        if (side === 'machine') {
+          return api('network.apply', { body: { side: 'machine' } })
             .then(loadInterfaces)
             .then(() => {
-              setNotice({ side: 'tnc', text: t('tnc_applied') });
+              setNotice({ side: 'machine', text: t('machine_applied') });
             });
         }
         // One button, so saving applies. Splitting them made the operator press two
@@ -397,13 +397,13 @@ function InterfaceSections(): JSX.Element {
   };
 
   const update =
-    (side: 'lan' | 'tnc') =>
+    (side: 'lan' | 'machine') =>
     (next: NetworkSide): void => {
       setForm({ ...form, [side]: next });
     };
 
   /** The banner that says the stored configuration is not the one in force. */
-  const driftFor = (side: 'lan' | 'tnc'): JSX.Element | null => {
+  const driftFor = (side: 'lan' | 'machine'): JSX.Element | null => {
     if (!(side === 'lan' ? driftedLan : driftedTnc)) {
       return null;
     }
@@ -425,7 +425,7 @@ function InterfaceSections(): JSX.Element {
     );
   };
 
-  const noticeFor = (side: 'lan' | 'tnc'): JSX.Element | null =>
+  const noticeFor = (side: 'lan' | 'machine'): JSX.Element | null =>
     notice?.side === side ? (
       <p className="text-sm text-status-ok" role="status">
         {notice.text}
@@ -472,30 +472,30 @@ function InterfaceSections(): JSX.Element {
         <section className="flex flex-col gap-4 rounded-lg border border-border p-4 dark:border-border-dark">
           <header>
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              {t('tnc_side_title')}
+              {t('machine_side_title')}
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{t('tnc_side_hint')}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t('machine_side_hint')}</p>
           </header>
-          {driftFor('tnc')}
+          {driftFor('machine')}
           <NetworkSideFields
-            side="tnc"
-            value={form.tnc}
+            side="machine"
+            value={form.machine}
             interfaces={interfaces}
             errors={errors}
-            onChange={update('tnc')}
+            onChange={update('machine')}
           />
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4 dark:border-border-dark">
             <Button
-              onClick={() => saveSide('tnc')}
-              loading={busy === 'tnc'}
-              disabled={(!dirty('tnc') && !driftedTnc) || busy !== undefined}
+              onClick={() => saveSide('machine')}
+              loading={busy === 'machine'}
+              disabled={(!dirty('machine') && !driftedTnc) || busy !== undefined}
               className="w-fit"
             >
               {t('save_and_apply_button')}
             </Button>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{t('apply_tnc_hint')}</p>
-          {noticeFor('tnc')}
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('apply_machine_hint')}</p>
+          {noticeFor('machine')}
         </section>
       </div>
 
@@ -570,9 +570,11 @@ function DhcpServerSection(): JSX.Element {
       */}
       <div className="rounded-md border border-accent/30 bg-accent/5 px-4 py-3">
         <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-          {t('dhcp_tnc_only_title')}
+          {t('dhcp_machine_only_title')}
         </p>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t('dhcp_tnc_only_body')}</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          {t('dhcp_machine_only_body')}
+        </p>
       </div>
       <Checkbox
         id="dhcpEnabled"

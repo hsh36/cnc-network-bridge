@@ -45,7 +45,7 @@ beforeEach(async () => {
   shareId = Number(
     db.run(
       `INSERT INTO shares (name, server_unc, mount_point, cache_path, created_at, updated_at)
-       VALUES ('programs', '//fs/cnc$', '/mnt/tnc-server/programs', @cache, @now, @now)`,
+       VALUES ('programs', '//fs/cnc$', '/mnt/smb-server/programs', @cache, @now, @now)`,
       { now: clock, cache: cacheRoot },
     ).lastInsertRowid,
   );
@@ -107,7 +107,7 @@ describe('VersioningEngine', () => {
       const versions = store.list({ shareId, relPath: 'PGM/PART2.H' });
       expect(versions.items).toHaveLength(1);
       expect(versions.items[0]!).toMatchObject({
-        origin: 'tnc',
+        origin: 'machine',
         relPath: 'PGM/PART2.H',
       });
     });
@@ -177,7 +177,7 @@ describe('VersioningEngine', () => {
 
       const versions = store.list({ shareId, relPath: 'PGM/PULL.H' });
       expect(versions.items).toHaveLength(1);
-      expect(versions.items[0]!.origin).toBe('tnc');
+      expect(versions.items[0]!.origin).toBe('machine');
     });
 
     it('handles local overwrite (PUSH scenario)', async () => {

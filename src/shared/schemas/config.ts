@@ -78,7 +78,7 @@ export type NetworkSide = z.infer<typeof networkSideSchema>;
 /** Adds the `static`-implies-address-and-gateway rule to one side. */
 function checkStaticAddressing(
   side: NetworkSide,
-  which: 'lan' | 'tnc',
+  which: 'lan' | 'machine',
   ctx: z.RefinementCtx,
 ): void {
   if (side.method !== 'static') {
@@ -148,7 +148,7 @@ export const networkConfigSchema = z
     mode: networkModeSchema.default('existing-network'),
     bridge: bridgeModeSchema.default({}),
     lan: networkSideSchema.extend({ interface: interfaceNameSchema.default('eth0') }).default({}),
-    tnc: networkSideSchema
+    machine: networkSideSchema
       .extend({
         interface: interfaceNameSchema.default('eth1'),
         method: ipv4MethodSchema.default('static'),
@@ -170,17 +170,17 @@ export const networkConfigSchema = z
   })
   .superRefine((cfg, ctx) => {
     checkStaticAddressing(cfg.lan, 'lan', ctx);
-    checkStaticAddressing(cfg.tnc, 'tnc', ctx);
+    checkStaticAddressing(cfg.machine, 'machine', ctx);
 
     // Both modes are one NIC per side, so this no longer depends on the mode — and it
     // is the rule that used to be argued for in terms of 802.1Q: sharing a NIC was only
     // ever safe when tagging kept the two segments in separate broadcast domains.
     // Untagged, it puts SMB1 on the corporate LAN. With trunk mode gone there is no
     // tagging left to make it safe, so a shared interface is simply refused.
-    if (cfg.lan.interface === cfg.tnc.interface) {
+    if (cfg.lan.interface === cfg.machine.interface) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['tnc', 'interface'],
+        path: ['machine', 'interface'],
         message: 'The LAN and machine sides need one NIC each; select a different interface.',
       });
     }
@@ -189,10 +189,10 @@ export const networkConfigSchema = z
     // resolve, and a resolver stored here would be written into the TNC leg's profile
     // where it can only mislead — or, worse, become the appliance's own resolver on a
     // leg that cannot reach it.
-    if (cfg.tnc.dns.length > 0) {
+    if (cfg.machine.dns.length > 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['tnc', 'dns'],
+        path: ['machine', 'dns'],
         message: 'The TNC side has nothing to resolve; leave its DNS servers empty.',
       });
     }
@@ -255,7 +255,7 @@ export const smbConfigSchema = z
           .default({}),
       })
       .default({}),
-    tnc: z
+    machine: z
       .object({
         minProtocol: tncProtocolSchema.default('NT1'),
         maxProtocol: tncProtocolSchema.default('SMB3'),
@@ -270,10 +270,10 @@ export const smbConfigSchema = z
   })
   .superRefine((cfg, ctx) => {
     const order = ['NT1', 'SMB2', 'SMB3'] as const;
-    if (order.indexOf(cfg.tnc.maxProtocol) < order.indexOf(cfg.tnc.minProtocol)) {
+    if (order.indexOf(cfg.machine.maxProtocol) < order.indexOf(cfg.machine.minProtocol)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['tnc', 'maxProtocol'],
+        path: ['machine', 'maxProtocol'],
         message: 'The maximum TNC protocol must not be lower than the minimum',
       });
     }
@@ -283,7 +283,7 @@ export const smbConfigSchema = z
 // sync
 // ---------------------------------------------------------------------------
 
-export const conflictModeSchema = z.enum(['tnc_wins', 'server_wins', 'last_write_wins']);
+export const conflictModeSchema = z.enum(['machine_wins', 'server_wins', 'last_write_wins']);
 export type ConflictMode = z.infer<typeof conflictModeSchema>;
 
 // ---------------------------------------------------------------------------
@@ -402,7 +402,7 @@ export const syncConfigSchema = z.object({
   excludePatterns: z
     .array(globPatternSchema)
     .max(200)
-    .default(['**/.DS_Store', '**/Thumbs.db', '**/~$*', '**/.tnc-tmp-*']),
+    .default(['**/.DS_Store', '**/Thumbs.db', '**/~$*', '**/.smb-tmp-*']),
   /** Drop the TNC share to read-only when the server is unreachable (ARCHITECTURE §3.4). */
   failoverReadOnly: z.boolean().default(true),
   maxFileSizeMb: z.number().int().min(1).max(102_400).default(512),
@@ -438,7 +438,7 @@ export const lockingConfigSchema = z.object({
   enabled: z.boolean().default(true),
   serverProjection: serverProjectionSchema.default('byte_range'),
   /** Ceiling for a TNC that opens a file and never closes it. */
-  tncLockTtlS: z.number().int().min(30).max(86_400).default(900),
+  machineLockTtlS: z.number().int().min(30).max(86_400).default(900),
   /** Grace period after `close` before the lock is released, to absorb save-close-reopen. */
   releaseLingerS: z.number().int().min(0).max(3600).default(5),
   /** Scheduled lock windows are off on a fresh install, per spec. */

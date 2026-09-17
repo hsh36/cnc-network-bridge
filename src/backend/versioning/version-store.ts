@@ -385,4 +385,4 @@ async function statOrNull(path: string): Promise<{ size: number; mtimeMs: number
 }
 
 /** Default on-disk location of the blob store, per the deployment layout. */
-export const DEFAULT_VERSION_ROOT = join(sep, 'var', 'lib', 'tnc-bridge', 'versions');
+export const DEFAULT_VERSION_ROOT = join(sep, 'var', 'lib', 'smb-bridge', 'versions');

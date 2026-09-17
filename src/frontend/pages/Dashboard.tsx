@@ -36,12 +36,12 @@ function getLockColumns(t: ReturnType<typeof useTranslation>): readonly Column<L
     {
       key: 'origin',
       header: t('table_origin'),
-      render: (l) => <Badge tone={l.origin === 'tnc' ? 'accent' : 'idle'}>{l.origin}</Badge>,
+      render: (l) => <Badge tone={l.origin === 'machine' ? 'accent' : 'idle'}>{l.origin}</Badge>,
     },
     {
       key: 'owner',
       header: t('table_owner'),
-      render: (l) => l.ownerLabel ?? l.tncIp ?? '—',
+      render: (l) => l.ownerLabel ?? l.machineIp ?? '—',
     },
     {
       key: 'age',

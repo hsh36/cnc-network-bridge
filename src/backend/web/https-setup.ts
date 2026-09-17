@@ -23,7 +23,7 @@ import { type CertificateInfo, type TlsVersion } from '../../shared';
  * rule is never at risk from this module.
  */
 
-export const DEFAULT_TLS_DIR = '/etc/tnc-bridge/tls';
+export const DEFAULT_TLS_DIR = '/etc/smb-bridge/tls';
 
 export class CertificateError extends Error {
   constructor(
@@ -84,7 +84,7 @@ function toForgeAltNames(
 export function generateSelfSignedCertificate(
   options: GenerateSelfSignedOptions = {},
 ): CertificateMaterial {
-  const commonName = options.commonName ?? 'cnc-network-bridge.local';
+  const commonName = options.commonName ?? 'smb-bridge.local';
   const sans = [
     ...new Set([commonName, ...defaultSubjectAltNames(), ...(options.additionalSans ?? [])]),
   ];

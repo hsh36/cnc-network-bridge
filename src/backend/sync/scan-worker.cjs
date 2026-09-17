@@ -67,7 +67,7 @@ async function walk(request, onChunk) {
   const maxEntries = request.maxEntries ?? Number.POSITIVE_INFINITY;
 
   // One matcher for the whole walk. `dot: true` because a pattern list that silently
-  // ignored dotfiles would leave `.tnc-tmp-*` transfer temporaries in the index.
+  // ignored dotfiles would leave `.smb-tmp-*` transfer temporaries in the index.
   const isExcluded =
     excludes.length > 0 ? picomatch(excludes, { dot: true, nocase: true }) : () => false;
 

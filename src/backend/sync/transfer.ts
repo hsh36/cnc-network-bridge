@@ -27,7 +27,7 @@ import { createHasher, hashStream, type HashAlgorithm } from './hasher';
  *
  * The mechanism is the standard one and it is not negotiable:
  *
- * 1. write to `<dir>/.tnc-tmp-<random>` in the **destination directory**, so the final
+ * 1. write to `<dir>/.smb-tmp-<random>` in the **destination directory**, so the final
  *    step is a rename within one filesystem and therefore atomic;
  * 2. `fsync` the file, so the bytes are on the medium and not merely in the page cache;
  * 3. verify what actually landed by reading it back and hashing it;

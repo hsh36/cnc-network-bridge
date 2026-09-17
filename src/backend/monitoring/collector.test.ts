@@ -65,12 +65,12 @@ describe('collect', () => {
       { now: NOW },
     );
     db.run(
-      `INSERT INTO locks (share_id, rel_path, origin, acquired_at) VALUES (1, 'a.h', 'tnc', @now)`,
+      `INSERT INTO locks (share_id, rel_path, origin, acquired_at) VALUES (1, 'a.h', 'machine', @now)`,
       { now: NOW },
     );
     db.run(
       `INSERT INTO locks (share_id, rel_path, origin, acquired_at, released_at)
-       VALUES (1, 'b.h', 'tnc', @now, @now)`,
+       VALUES (1, 'b.h', 'machine', @now, @now)`,
       { now: NOW },
     );
 

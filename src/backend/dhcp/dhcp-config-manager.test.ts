@@ -8,12 +8,12 @@ import { generateSecretKey } from '../config/secrets';
 describe('renderDnsmasqConf', () => {
   it('renders a valid dnsmasq configuration', () => {
     const config = {
-      tncInterface: 'eth1',
+      machineInterface: 'eth1',
       rangeStart: '192.168.42.100',
       rangeEnd: '192.168.42.199',
       leaseTime: '12h',
       gateway: '192.168.42.1',
-      domain: 'tnc.local',
+      domain: 'machines.local',
       enabled: true,
     };
 
@@ -28,17 +28,17 @@ describe('renderDnsmasqConf', () => {
     // bridge on the machine segment must not do.
     expect(content).toMatch(/dhcp-option=option:dns-server$/m);
     expect(content).not.toMatch(/dhcp-option=option:dns-server,/);
-    expect(content).toContain('dhcp-option=option:domain-name,tnc.local');
+    expect(content).toContain('dhcp-option=option:domain-name,machines.local');
   });
 
   it('includes static reservations', () => {
     const config = {
-      tncInterface: 'eth1',
+      machineInterface: 'eth1',
       rangeStart: '192.168.42.100',
       rangeEnd: '192.168.42.199',
       leaseTime: '12h',
       gateway: '192.168.42.1',
-      domain: 'tnc.local',
+      domain: 'machines.local',
       enabled: true,
     };
 
@@ -55,12 +55,12 @@ describe('renderDnsmasqConf', () => {
 
   it('uses MAC address as hostname when hostname is not provided', () => {
     const config = {
-      tncInterface: 'eth1',
+      machineInterface: 'eth1',
       rangeStart: '192.168.42.100',
       rangeEnd: '192.168.42.199',
       leaseTime: '12h',
       gateway: '192.168.42.1',
-      domain: 'tnc.local',
+      domain: 'machines.local',
       enabled: true,
     };
 
@@ -73,12 +73,12 @@ describe('renderDnsmasqConf', () => {
 
   it('lowercases MAC addresses', () => {
     const config = {
-      tncInterface: 'eth1',
+      machineInterface: 'eth1',
       rangeStart: '192.168.42.100',
       rangeEnd: '192.168.42.199',
       leaseTime: '12h',
       gateway: '192.168.42.1',
-      domain: 'tnc.local',
+      domain: 'machines.local',
       enabled: true,
     };
 
@@ -112,7 +112,7 @@ describe('DHCPConfigManager', () => {
       const result = dhcpManager.buildConfiguration('eth1');
 
       expect(result.config).toMatchObject({
-        tncInterface: 'eth1',
+        machineInterface: 'eth1',
         enabled: false, // default from schema
         leaseTime: '12h',
       });
@@ -141,10 +141,10 @@ describe('DHCPConfigManager', () => {
       expect(result.content).not.toContain('dhcp-host=');
     });
 
-    it('fetches static reservations from tnc_clients table', () => {
+    it('fetches static reservations from machine_clients table', () => {
       const now = Math.floor(Date.now() / 1000);
       db.run(
-        `INSERT INTO tnc_clients (mac_address, reserved_ip, name, dhcp_reserved, created_at, updated_at)
+        `INSERT INTO machine_clients (mac_address, reserved_ip, name, dhcp_reserved, created_at, updated_at)
          VALUES (@mac, @ip, @name, 1, @now, @now)`,
         {
           mac: 'aa:bb:cc:dd:ee:ff',
@@ -162,7 +162,7 @@ describe('DHCPConfigManager', () => {
     it('ignores entries without reserved_ip', () => {
       const now = Math.floor(Date.now() / 1000);
       db.run(
-        `INSERT INTO tnc_clients (mac_address, name, dhcp_reserved, created_at, updated_at)
+        `INSERT INTO machine_clients (mac_address, name, dhcp_reserved, created_at, updated_at)
          VALUES (@mac, @name, 0, @now, @now)`,
         {
           mac: 'aa:bb:cc:dd:ee:ff',
@@ -179,7 +179,7 @@ describe('DHCPConfigManager', () => {
     it('ignores entries with dhcp_reserved = 0', () => {
       const now = Math.floor(Date.now() / 1000);
       db.run(
-        `INSERT INTO tnc_clients (mac_address, reserved_ip, name, dhcp_reserved, created_at, updated_at)
+        `INSERT INTO machine_clients (mac_address, reserved_ip, name, dhcp_reserved, created_at, updated_at)
          VALUES (@mac, @ip, @name, 0, @now, @now)`,
         {
           mac: 'aa:bb:cc:dd:ee:ff',

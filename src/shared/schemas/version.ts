@@ -14,7 +14,7 @@ import {
  */
 export const versionOriginSchema = z.enum([
   'server',
-  'tnc',
+  'machine',
   'restore',
   'initial',
   'conflict_loser',

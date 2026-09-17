@@ -24,7 +24,7 @@ export function NetworkApplyBanner({
 }): JSX.Element | null {
   const t = useTranslation('config');
   const [remaining, setRemaining] = useState<number>();
-  const [side, setSide] = useState<'lan' | 'tnc'>();
+  const [side, setSide] = useState<'lan' | 'machine'>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 

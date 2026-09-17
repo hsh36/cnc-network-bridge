@@ -140,8 +140,8 @@ describe('GET /metrics/prometheus', () => {
 
     expect(res.headers['content-type']).toContain('text/plain');
     expect(res.headers['content-type']).toContain('version=0.0.4');
-    expect(res.text).toContain('# TYPE tnc_sync_files_total counter');
-    expect(res.text).toContain('tnc_sync_files_total{direction="pull"} 7');
+    expect(res.text).toContain('# TYPE smb_bridge_sync_files_total counter');
+    expect(res.text).toContain('smb_bridge_sync_files_total{direction="pull"} 7');
   });
 
   it('is not wrapped in the API envelope', async () => {

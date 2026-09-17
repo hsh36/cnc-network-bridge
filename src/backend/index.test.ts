@@ -37,7 +37,7 @@ let services: Service[] = [];
 
 function options(overrides: BootstrapOptions = {}): BootstrapOptions {
   return {
-    dbPath: join(root, 'db', 'tnc-bridge.db'),
+    dbPath: join(root, 'db', 'smb-bridge.db'),
     logDir: join(root, 'log'),
     secretKeyPath: join(root, 'secret.key'),
     notifier: new NoopNotifier(),
@@ -123,7 +123,7 @@ describe('startup', () => {
     }
     expect(error).toBeDefined();
     // The database stage never ran, so no `.db` file was created to leak.
-    expect(existsSync(join(root, 'db', 'tnc-bridge.db'))).toBe(false);
+    expect(existsSync(join(root, 'db', 'smb-bridge.db'))).toBe(false);
   });
 });
 
@@ -173,7 +173,7 @@ describe('graceful shutdown', () => {
    * stale rather than obviously broken.
    */
   it('checkpoints the WAL so the last writes live in the .db file itself', async () => {
-    const dbPath = join(root, 'db', 'tnc-bridge.db');
+    const dbPath = join(root, 'db', 'smb-bridge.db');
     const service = await start();
     service.db.run(
       "INSERT INTO config (key, value, is_secret, updated_at) VALUES ('probe.key', '1', 0, 1)",
@@ -199,7 +199,7 @@ describe('graceful shutdown', () => {
   /**
    * The acceptance criterion for T8, modelled literally: a transfer is mid-write when
    * SIGTERM arrives. Shutdown must wait for the rename rather than exiting between the
-   * write and the rename, which is what would strand a `.tnc-tmp-*` file on the share.
+   * write and the rename, which is what would strand a `.smb-tmp-*` file on the share.
    */
   it('waits for an in-flight transfer, leaving no temp file behind', async () => {
     const share = join(root, 'share');

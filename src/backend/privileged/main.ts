@@ -59,11 +59,11 @@ export interface HelperResponse {
   readonly code?: 'denied' | 'failed' | 'usage';
 }
 
-const USAGE = `tnc-bridge-helper — privileged operations for the CNC Network Bridge.
+const USAGE = `smb-bridge-helper — privileged operations for the SMB Bridge.
 
 Reads one JSON request on stdin and writes one JSON response on stdout.
 Must be invoked as root, normally through the sudoers rule installed at
-/etc/sudoers.d/tnc-bridge.
+/etc/sudoers.d/smb-bridge.
 
 Verbs: ${PRIVILEGED_VERBS.join(', ')}
 
@@ -132,7 +132,7 @@ export function runHelper(
       'usage',
       '<none>',
       `must run as root (uid 0), but the effective uid is ${uid}. ` +
-        'Invoke via: sudo /usr/local/lib/tnc-bridge/helper',
+        'Invoke via: sudo /usr/local/lib/smb-bridge/helper',
       EXIT_USAGE,
     );
   }

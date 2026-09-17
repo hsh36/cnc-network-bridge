@@ -82,14 +82,14 @@ export function LockingSettings(): JSX.Element {
 
       <Input
         id="tncLockTtl"
-        label={t('tnc_lock_ttl')}
+        label={t('machine_lock_ttl')}
         type="number"
-        value={form.tncLockTtlS}
+        value={form.machineLockTtlS}
         onChange={(e) => {
-          setForm({ ...form, tncLockTtlS: Number(e.target.value) });
+          setForm({ ...form, machineLockTtlS: Number(e.target.value) });
           setIsDirty(true);
         }}
-        error={errors.tncLockTtlS}
+        error={errors.machineLockTtlS}
         className="w-64"
       />
 

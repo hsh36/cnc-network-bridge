@@ -39,7 +39,7 @@ beforeEach(async () => {
   shareId = Number(
     db.run(
       `INSERT INTO shares (name, server_unc, mount_point, cache_path, created_at, updated_at)
-       VALUES ('programs', '//fs/cnc$', '/mnt/tnc-server/programs', @cache, @now, @now)`,
+       VALUES ('programs', '//fs/cnc$', '/mnt/smb-server/programs', @cache, @now, @now)`,
       { now: clock, cache: cacheRoot },
     ).lastInsertRowid,
   );
@@ -51,11 +51,11 @@ afterEach(() => {
 
 describe('resolveWithinRoot', () => {
   it('resolves an ordinary relative path', () => {
-    expect(resolveWithinRoot('/srv/tnc/programs', 'PGM/PART1.H')).toContain('PART1.H');
+    expect(resolveWithinRoot('/srv/smb-bridge/programs', 'PGM/PART1.H')).toContain('PART1.H');
   });
 
   it('refuses a path that escapes via ..', () => {
-    expect(() => resolveWithinRoot('/srv/tnc/programs', '../../etc/passwd')).toThrow(
+    expect(() => resolveWithinRoot('/srv/smb-bridge/programs', '../../etc/passwd')).toThrow(
       PathTraversalError,
     );
   });
@@ -63,19 +63,25 @@ describe('resolveWithinRoot', () => {
   it('refuses an escape that normalises out of the root without a leading ..', () => {
     // `a/../../b` contains no leading `..` yet still escapes — which is why the check is
     // on the resolved path, not on the text.
-    expect(() => resolveWithinRoot('/srv/tnc/programs', 'a/../../b')).toThrow(PathTraversalError);
+    expect(() => resolveWithinRoot('/srv/smb-bridge/programs', 'a/../../b')).toThrow(
+      PathTraversalError,
+    );
   });
 
   it('refuses an absolute path', () => {
-    expect(() => resolveWithinRoot('/srv/tnc/programs', '/etc/passwd')).toThrow(PathTraversalError);
+    expect(() => resolveWithinRoot('/srv/smb-bridge/programs', '/etc/passwd')).toThrow(
+      PathTraversalError,
+    );
   });
 
   it('refuses a NUL byte', () => {
-    expect(() => resolveWithinRoot('/srv/tnc/programs', 'ok\0.h')).toThrow(PathTraversalError);
+    expect(() => resolveWithinRoot('/srv/smb-bridge/programs', 'ok\0.h')).toThrow(
+      PathTraversalError,
+    );
   });
 
   it('allows a path that merely mentions .. inside a filename', () => {
-    expect(() => resolveWithinRoot('/srv/tnc/programs', 'PGM/..keep.H')).not.toThrow();
+    expect(() => resolveWithinRoot('/srv/smb-bridge/programs', 'PGM/..keep.H')).not.toThrow();
   });
 });
 
@@ -115,7 +121,7 @@ describe('capture', () => {
       shareId,
       relPath: 'PART1.H',
       sourcePath: source,
-      origin: 'tnc',
+      origin: 'machine',
     });
 
     // Two rows of genuine history, one blob.
@@ -149,12 +155,12 @@ describe('list', () => {
     await store.capture({ shareId, relPath: 'P.H', sourcePath: source, origin: 'server' });
     clock += 100;
     await writeFile(source, 'V2');
-    await store.capture({ shareId, relPath: 'P.H', sourcePath: source, origin: 'tnc' });
+    await store.capture({ shareId, relPath: 'P.H', sourcePath: source, origin: 'machine' });
 
     const page = store.list({ shareId, relPath: 'P.H' });
 
     expect(page.total).toBe(2);
-    expect(page.items[0]?.origin).toBe('tnc');
+    expect(page.items[0]?.origin).toBe('machine');
     expect(page.items[1]?.origin).toBe('server');
   });
 

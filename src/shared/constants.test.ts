@@ -22,7 +22,7 @@ describe('shared constants', () => {
   });
 
   it('exposes exactly the three specified conflict modes', () => {
-    expect(CONFLICT_MODES).toEqual(['tnc_wins', 'server_wins', 'last_write_wins']);
+    expect(CONFLICT_MODES).toEqual(['machine_wins', 'server_wins', 'last_write_wins']);
   });
 
   it('uses a fixed-width sentinel that cannot be mistaken for a real secret', () => {

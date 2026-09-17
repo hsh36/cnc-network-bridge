@@ -28,7 +28,7 @@ import {
 // ---------------------------------------------------------------------------
 
 const SHARE = 'programs';
-const MOUNT_POINT = '/mnt/tnc-server/programs';
+const MOUNT_POINT = '/mnt/smb-server/programs';
 
 const SPEC: MountSpec = {
   shareName: SHARE,
@@ -286,8 +286,8 @@ describe('parseProcMounts', () => {
 
   it('unescapes octal sequences so a share name with a space still matches', () => {
     // Without this the mount looks absent and gets remounted forever.
-    const entries = parseProcMounts('//srv/x /mnt/tnc-server/CNC\\040Programme cifs rw,soft 0 0\n');
-    expect(entries[0]?.mountPoint).toBe('/mnt/tnc-server/CNC Programme');
+    const entries = parseProcMounts('//srv/x /mnt/smb-server/CNC\\040Programme cifs rw,soft 0 0\n');
+    expect(entries[0]?.mountPoint).toBe('/mnt/smb-server/CNC Programme');
   });
 
   it('skips blank and malformed lines instead of throwing', () => {
@@ -329,8 +329,8 @@ describe('isMountPoint', () => {
   it('says yes when the path is on a different device from its parent', () => {
     expect(
       isMountPoint(
-        '/mnt/tnc-server/test',
-        devices({ '/mnt/tnc-server/test': 42, '/mnt/tnc-server': 1 }),
+        '/mnt/smb-server/test',
+        devices({ '/mnt/smb-server/test': 42, '/mnt/smb-server': 1 }),
       ),
     ).toBe(true);
   });
@@ -341,14 +341,14 @@ describe('isMountPoint', () => {
     // everything written to it stays on the appliance.
     expect(
       isMountPoint(
-        '/mnt/tnc-server/test',
-        devices({ '/mnt/tnc-server/test': 1, '/mnt/tnc-server': 1 }),
+        '/mnt/smb-server/test',
+        devices({ '/mnt/smb-server/test': 1, '/mnt/smb-server': 1 }),
       ),
     ).toBe(false);
   });
 
   it('says no for a path it cannot stat at all', () => {
-    expect(isMountPoint('/mnt/tnc-server/gone', devices({}))).toBe(false);
+    expect(isMountPoint('/mnt/smb-server/gone', devices({}))).toBe(false);
   });
 });
 
@@ -689,7 +689,7 @@ describe('CifsMountManager.guard', () => {
 
     const started = Date.now();
     const error: unknown = await manager
-      .guard('stat /mnt/tnc-server/programs/x.H', () => new Promise<never>(() => undefined))
+      .guard('stat /mnt/smb-server/programs/x.H', () => new Promise<never>(() => undefined))
       .catch((e: unknown) => e);
 
     expect(Date.now() - started).toBeLessThan(1_000);

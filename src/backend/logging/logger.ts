@@ -15,7 +15,7 @@ import { SqliteLogSink } from './sqlite-sink';
  *
  * Four sinks, each with a distinct consumer:
  *
- * - **stdout** — captured by journald, so `journalctl -u tnc-bridge` works the way an
+ * - **stdout** — captured by journald, so `journalctl -u smb-bridge` works the way an
  *   administrator expects without the service knowing anything about journald.
  * - **app.log** — the full rotating JSON record, for after-the-fact analysis and for
  *   attaching to a support ticket.

@@ -202,8 +202,8 @@ describe('releasing', () => {
 
 describe('targetPath', () => {
   it('resolves the file on the server share, not in the cache', () => {
-    expect(ByteRangeLocker.targetPath('/mnt/tnc-server/test', 'sub/PART1.H')).toBe(
-      '/mnt/tnc-server/test/sub/PART1.H',
+    expect(ByteRangeLocker.targetPath('/mnt/smb-server/test', 'sub/PART1.H')).toBe(
+      '/mnt/smb-server/test/sub/PART1.H',
     );
   });
 });

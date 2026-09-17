@@ -51,7 +51,7 @@ export class FirewallService {
    * replaces the table.
    */
   apply(network: NetworkConfig): boolean {
-    const tncInterface = network.tnc.interface;
+    const machineInterface = network.machine.interface;
     /*
       Routing is a `single-machine` question, and the mode is checked here rather than
       trusted from the stored flag.
@@ -66,13 +66,13 @@ export class FirewallService {
     let content: string;
     try {
       content = renderManagementIsolation({
-        tncInterface,
+        machineInterface,
         lanInterface: network.lan.interface,
         internetAccess: routing,
       });
     } catch (error) {
       this.logger?.error(
-        { tncInterface, error: messageOf(error) },
+        { machineInterface, error: messageOf(error) },
         'could not build the management isolation ruleset',
       );
       return false;
@@ -86,14 +86,14 @@ export class FirewallService {
       const response = this.invoke({ verb: 'write-nft-ruleset', content, ipForward: routing });
       if (!response.ok) {
         this.logger?.error(
-          { tncInterface, error: response.error },
+          { machineInterface, error: response.error },
           'the helper refused the management isolation ruleset',
         );
         return false;
       }
       this.lastApplied = content;
       this.logger?.info(
-        { tncInterface, routing },
+        { machineInterface, routing },
         routing
           ? 'management interface isolated from the TNC segment; machines routed out via NAT'
           : 'management interface isolated from the TNC segment by nftables',
@@ -101,7 +101,7 @@ export class FirewallService {
       return true;
     } catch (error) {
       this.logger?.error(
-        { tncInterface, error: messageOf(error) },
+        { machineInterface, error: messageOf(error) },
         'could not load the management isolation ruleset; the in-process guard still applies',
       );
       return false;

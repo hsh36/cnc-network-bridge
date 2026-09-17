@@ -68,7 +68,7 @@ export class SambaConfigManager {
         // connect to. Exporting it anyway means the control gets ACCESS_DENIED, which
         // reads as a password problem and sends an operator looking at credentials
         // that do not exist. Leaving it out and saying why is diagnosable.
-        if (!share.tncGuestOk && share.tncUser === null) {
+        if (!share.machineGuestOk && share.machineUser === null) {
           this.logger?.warn(
             { share: share.name },
             'share not exported: guest access is off and no user is set, so no machine could connect',
@@ -85,27 +85,27 @@ export class SambaConfigManager {
         // was unreachable.
         path: share.cachePath,
         readOnly: share.readOnly || share.failoverReadOnly,
-        guestOk: share.tncGuestOk,
+        guestOk: share.machineGuestOk,
         // Named only when the share actually authenticates. `valid users` alongside
         // `guest ok = yes` is a contradiction Samba resolves in favour of the guest,
         // which would silently make the account decorative.
-        ...(share.tncGuestOk || share.tncUser === null
+        ...(share.machineGuestOk || share.machineUser === null
           ? {}
           : { validUsers: [sambaAccountFor(share.name)] }),
         ...(share.excludePatterns.length > 0 ? { extraVetoFiles: share.excludePatterns } : {}),
       }));
 
     return buildSmbConf({
-      tncInterface: network.tnc.interface,
+      machineInterface: network.machine.interface,
       // Handed over so the generator can prove it is absent rather than assume it.
       lanInterface: network.lan.interface,
-      workgroup: smb.tnc.workgroup,
+      workgroup: smb.machine.workgroup,
       // The SMB server name is the TNC side's hostname: the name the machines dial,
       // which is deliberately independent of what the appliance calls itself.
-      ...(network.tnc.hostname === '' ? {} : { netbiosName: network.tnc.hostname }),
-      maxProtocol: smb.tnc.maxProtocol,
-      ntlmAuth: smb.tnc.ntlmAuth,
-      dosCharset: smb.tnc.dosCharset,
+      ...(network.machine.hostname === '' ? {} : { netbiosName: network.machine.hostname }),
+      maxProtocol: smb.machine.maxProtocol,
+      ntlmAuth: smb.machine.ntlmAuth,
+      dosCharset: smb.machine.dosCharset,
       shares,
     });
   }
@@ -125,14 +125,14 @@ export class SambaConfigManager {
     for (const share of this.shares.list(500, 0).items) {
       const account = sambaAccountFor(share.name);
       try {
-        if (!share.enabled || share.tncGuestOk || share.tncUser === null) {
+        if (!share.enabled || share.machineGuestOk || share.machineUser === null) {
           // Removing is idempotent and safe for an account that was never created; the
           // helper allows both of its commands to fail.
           this.invoke({ verb: 'set-samba-user', username: account, password: '', remove: true });
           continue;
         }
 
-        const password = this.shares.tncPassword(share.id);
+        const password = this.shares.machinePassword(share.id);
         if (password === undefined) {
           // A share that names a user but has no password stored cannot authenticate
           // anyone. Saying so is more use than an account nobody can log into.

@@ -15,7 +15,7 @@ import { dirname } from 'node:path';
  * service itself. A process that can rewrite its own audit trail does not have one.
  */
 
-export const DEFAULT_AUDIT_LOG_PATH = '/var/log/tnc-bridge/privileged-audit.log';
+export const DEFAULT_AUDIT_LOG_PATH = '/var/log/smb-bridge/privileged-audit.log';
 
 export type AuditOutcome = 'ok' | 'failed' | 'denied';
 

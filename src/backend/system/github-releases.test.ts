@@ -98,14 +98,14 @@ describe('fetchLatestRelease', () => {
   it('asks GitHub for the configured repository', async () => {
     const fetchImpl = jest.fn().mockResolvedValue(jsonResponse([release()]));
     const result = await fetchLatestRelease({
-      repo: 'hsh36/cnc-network-bridge',
+      repo: 'hsh36/smb-bridge',
       channel: 'stable',
       fetchImpl: fetchImpl,
     });
 
     expect(result?.version).toBe('0.2.0');
     expect(fetchImpl.mock.calls[0]?.[0]).toContain(
-      'https://api.github.com/repos/hsh36/cnc-network-bridge/releases',
+      'https://api.github.com/repos/hsh36/smb-bridge/releases',
     );
   });
 
@@ -140,7 +140,7 @@ describe('fetchLatestRelease', () => {
     const fetchImpl = jest.fn().mockRejectedValue(new Error('getaddrinfo ENOTFOUND'));
     await expect(
       fetchLatestRelease({
-        repo: 'hsh36/cnc-network-bridge',
+        repo: 'hsh36/smb-bridge',
         channel: 'stable',
         fetchImpl: fetchImpl,
       }),
@@ -151,7 +151,7 @@ describe('fetchLatestRelease', () => {
     const fetchImpl = jest.fn().mockResolvedValue(jsonResponse({ message: 'rate limited' }));
     await expect(
       fetchLatestRelease({
-        repo: 'hsh36/cnc-network-bridge',
+        repo: 'hsh36/smb-bridge',
         channel: 'stable',
         fetchImpl: fetchImpl,
       }),
@@ -170,7 +170,7 @@ describe('fetchLatestRelease', () => {
 
     await expect(
       fetchLatestRelease({
-        repo: 'hsh36/cnc-network-bridge',
+        repo: 'hsh36/smb-bridge',
         channel: 'stable',
         fetchImpl: never,
         timeoutMs: 10,
@@ -182,7 +182,7 @@ describe('fetchLatestRelease', () => {
     const fetchImpl = jest.fn().mockResolvedValue(jsonResponse([]));
     await expect(
       fetchLatestRelease({
-        repo: 'hsh36/cnc-network-bridge',
+        repo: 'hsh36/smb-bridge',
         channel: 'stable',
         fetchImpl: fetchImpl,
       }),

@@ -17,9 +17,9 @@ import {
 // ---------------------------------------------------------------------------
 
 const BASE: SmbConfInput = {
-  tncInterface: 'eth1',
+  machineInterface: 'eth1',
   lanInterface: 'eth0',
-  shares: [{ name: 'programs', path: '/srv/tnc/programs' }],
+  shares: [{ name: 'programs', path: '/srv/smb-bridge/programs' }],
 };
 
 const ok = (stdout: string): CommandOutput => ({ stdout, stderr: '', code: 0 });
@@ -31,8 +31,8 @@ const SMBSTATUS_JSON = JSON.stringify({
     '3437877139': {
       session_id: '3437877139',
       server_id: { pid: '1234' },
-      username: 'tnc',
-      groupname: 'tnc',
+      username: 'machine',
+      groupname: 'machine',
       remote_machine: '192.168.42.50',
       session_dialect: 'NT1',
       encryption: { degree: 'none' },
@@ -43,8 +43,8 @@ const SMBSTATUS_JSON = JSON.stringify({
     '2': { service: 'programs', server_id: { pid: '1234' }, machine: '192.168.42.50' },
   },
   open_files: {
-    '/srv/tnc/programs/12345.H': {
-      service_path: '/srv/tnc/programs',
+    '/srv/smb-bridge/programs/12345.H': {
+      service_path: '/srv/smb-bridge/programs',
       filename: '12345.H',
       opens: {
         '0': {
@@ -64,7 +64,7 @@ const SMBSTATUS_TEXT = `
 Samba version 4.13.13-Debian
 PID     Username     Group        Machine                            Protocol Version  Encryption   Signing
 ----------------------------------------------------------------------------------------------------------
-1234    tnc          tnc          192.168.42.50                      NT1               -            -
+1234    machine      machine      192.168.42.50                      NT1               -            -
 
 Service      pid     Machine          Connected at
 --------------------------------------------------------
@@ -73,7 +73,7 @@ programs     1234    192.168.42.50    Sun Sep  7 10:00:00 2026
 Locked files:
 Pid          User(ID)   DenyMode   Access      R/W        Oplock           SharePath           Name       Time
 ---------------------------------------------------------------------------------------------------------------
-1234         1000       DENY_NONE  0x100081    RDWR       NONE             /srv/tnc/programs   12345.H    Sun Sep  7 10:00:01 2026
+1234         1000       DENY_NONE  0x100081    RDWR       NONE             /srv/smb-bridge/programs   12345.H    Sun Sep  7 10:00:01 2026
 `;
 
 // ---------------------------------------------------------------------------
@@ -98,7 +98,7 @@ describe('decideApplyStrategy', () => {
     const before = buildSmbConf(BASE);
     const after = buildSmbConf({
       ...BASE,
-      shares: [{ name: 'programs', path: '/srv/tnc/programs', readOnly: true }],
+      shares: [{ name: 'programs', path: '/srv/smb-bridge/programs', readOnly: true }],
     });
 
     const decision = decideApplyStrategy(before, after);
@@ -112,8 +112,8 @@ describe('decideApplyStrategy', () => {
     const after = buildSmbConf({
       ...BASE,
       shares: [
-        { name: 'programs', path: '/srv/tnc/programs' },
-        { name: 'tools', path: '/srv/tnc/tools' },
+        { name: 'programs', path: '/srv/smb-bridge/programs' },
+        { name: 'tools', path: '/srv/smb-bridge/tools' },
       ],
     });
     expect(decideApplyStrategy(before, after).strategy).toBe('reload');
@@ -121,7 +121,7 @@ describe('decideApplyStrategy', () => {
 
   it('restarts when the interface binding changes, and says which parameter forced it', () => {
     const before = buildSmbConf(BASE);
-    const after = buildSmbConf({ ...BASE, tncInterface: 'eth2', lanInterface: 'eth0' });
+    const after = buildSmbConf({ ...BASE, machineInterface: 'eth2', lanInterface: 'eth0' });
 
     const decision = decideApplyStrategy(before, after);
     expect(decision.strategy).toBe('restart');
@@ -231,7 +231,7 @@ describe('parseSmbStatusJson', () => {
     expect(status.sessions).toHaveLength(1);
     expect(status.sessions[0]).toMatchObject({
       pid: 1234,
-      username: 'tnc',
+      username: 'machine',
       remoteMachine: '192.168.42.50',
       dialect: 'NT1',
     });
@@ -245,7 +245,7 @@ describe('parseSmbStatusJson', () => {
     expect(status.openFiles[0]).toMatchObject({
       pid: 1234,
       uid: 1000,
-      sharePath: '/srv/tnc/programs',
+      sharePath: '/srv/smb-bridge/programs',
       filename: '12345.H',
       denyMode: 'DENY_NONE',
       oplock: 'NONE',
@@ -256,7 +256,7 @@ describe('parseSmbStatusJson', () => {
     // R15: the second opener is write contention, and collapsing them would hide it.
     const doubled = JSON.parse(SMBSTATUS_JSON) as Record<string, unknown>;
     const files = doubled.open_files as Record<string, Record<string, unknown>>;
-    const entry = files['/srv/tnc/programs/12345.H'];
+    const entry = files['/srv/smb-bridge/programs/12345.H'];
     (entry!.opens as Record<string, unknown>)['1'] = {
       server_id: { pid: '5678' },
       uid: 1001,
@@ -269,9 +269,9 @@ describe('parseSmbStatusJson', () => {
 
   it('accepts sessions supplied as an array', () => {
     const status = parseSmbStatusJson(
-      JSON.stringify({ sessions: [{ session_id: 'a', username: 'tnc' }] }),
+      JSON.stringify({ sessions: [{ session_id: 'a', username: 'machine' }] }),
     );
-    expect(status.sessions[0]?.username).toBe('tnc');
+    expect(status.sessions[0]?.username).toBe('machine');
   });
 
   it('degrades missing optional fields to null rather than throwing', () => {
@@ -283,7 +283,7 @@ describe('parseSmbStatusJson', () => {
 
   it('handles a file entry with no open handles', () => {
     const status = parseSmbStatusJson(
-      JSON.stringify({ open_files: { '/srv/tnc/programs/x.H': { filename: 'x.H' } } }),
+      JSON.stringify({ open_files: { '/srv/smb-bridge/programs/x.H': { filename: 'x.H' } } }),
     );
     expect(status.openFiles).toHaveLength(1);
     expect(status.openFiles[0]?.pid).toBeNull();
@@ -312,14 +312,14 @@ describe('parseSmbStatusText', () => {
     expect(status.version).toBe('4.13.13-Debian');
     expect(status.sessions[0]).toMatchObject({
       pid: 1234,
-      username: 'tnc',
+      username: 'machine',
       remoteMachine: '192.168.42.50',
       dialect: 'NT1',
     });
     expect(status.tcons[0]).toMatchObject({ service: 'programs', pid: 1234 });
     expect(status.openFiles[0]).toMatchObject({
       pid: 1234,
-      sharePath: '/srv/tnc/programs',
+      sharePath: '/srv/smb-bridge/programs',
       filename: '12345.H',
     });
   });
@@ -346,48 +346,52 @@ describe('toRelativePath', () => {
     access: null,
     rw: null,
     oplock: null,
-    sharePath: '/srv/tnc/programs',
+    sharePath: '/srv/smb-bridge/programs',
     filename: '12345.H',
     openedAt: null,
     ...overrides,
   });
 
   it('returns the name relative to the share root', () => {
-    expect(toRelativePath(file({}), '/srv/tnc/programs')).toBe('12345.H');
+    expect(toRelativePath(file({}), '/srv/smb-bridge/programs')).toBe('12345.H');
   });
 
   it('keeps nested directories', () => {
-    expect(toRelativePath(file({ filename: 'sub/12345.H' }), '/srv/tnc/programs')).toBe(
+    expect(toRelativePath(file({ filename: 'sub/12345.H' }), '/srv/smb-bridge/programs')).toBe(
       'sub/12345.H',
     );
   });
 
   it('strips a leading ./', () => {
-    expect(toRelativePath(file({ filename: './12345.H' }), '/srv/tnc/programs')).toBe('12345.H');
+    expect(toRelativePath(file({ filename: './12345.H' }), '/srv/smb-bridge/programs')).toBe(
+      '12345.H',
+    );
   });
 
   it('strips the cache root from an absolute name', () => {
     expect(
       toRelativePath(
-        file({ filename: '/srv/tnc/programs/12345.H', sharePath: null }),
-        '/srv/tnc/programs',
+        file({ filename: '/srv/smb-bridge/programs/12345.H', sharePath: null }),
+        '/srv/smb-bridge/programs',
       ),
     ).toBe('12345.H');
   });
 
   it('returns null for a file belonging to a different share', () => {
     // Attributing another share's open file to this one would lock the wrong path.
-    expect(toRelativePath(file({ sharePath: '/srv/tnc/tools' }), '/srv/tnc/programs')).toBeNull();
+    expect(
+      toRelativePath(file({ sharePath: '/srv/smb-bridge/tools' }), '/srv/smb-bridge/programs'),
+    ).toBeNull();
   });
 
   it('returns null for the share root itself', () => {
-    expect(toRelativePath(file({ filename: '.' }), '/srv/tnc/programs')).toBeNull();
+    expect(toRelativePath(file({ filename: '.' }), '/srv/smb-bridge/programs')).toBeNull();
   });
 
   it('tolerates a trailing slash on either side', () => {
-    expect(toRelativePath(file({ sharePath: '/srv/tnc/programs/' }), '/srv/tnc/programs')).toBe(
-      '12345.H',
-    );
+    expect(
+      toRelativePath(file({ sharePath: '/srv/smb-bridge/programs/' }), '/srv/smb-bridge/programs'),
+    ).toBe('12345.H');
   });
 });
 
@@ -518,7 +522,7 @@ describe('SambaService.apply', () => {
     const before = buildSmbConf(BASE);
     const after = buildSmbConf({
       ...BASE,
-      shares: [{ name: 'programs', path: '/srv/tnc/programs', readOnly: true }],
+      shares: [{ name: 'programs', path: '/srv/smb-bridge/programs', readOnly: true }],
     });
 
     await service.apply(before, after);
@@ -536,7 +540,7 @@ describe('SambaService.apply', () => {
 
     await service.apply(
       buildSmbConf(BASE),
-      buildSmbConf({ ...BASE, tncInterface: 'eth2', lanInterface: 'eth0' }),
+      buildSmbConf({ ...BASE, machineInterface: 'eth2', lanInterface: 'eth0' }),
     );
 
     expect(reload).toHaveBeenCalledWith('restart');

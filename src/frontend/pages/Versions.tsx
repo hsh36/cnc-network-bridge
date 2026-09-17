@@ -58,7 +58,7 @@ function isPreviewable(version: FileVersion): boolean {
 
 const ORIGIN_TONE: Record<FileVersion['origin'], BadgeTone> = {
   server: 'accent',
-  tnc: 'ok',
+  machine: 'ok',
   restore: 'warn',
   initial: 'idle',
   conflict_loser: 'error',
@@ -108,7 +108,7 @@ export function Versions(): JSX.Element {
 
   const ORIGIN_LABEL: Record<FileVersion['origin'], string> = {
     server: t('origin_server'),
-    tnc: t('origin_tnc'),
+    machine: t('origin_machine'),
     restore: t('origin_restore'),
     initial: t('origin_initial'),
     conflict_loser: t('origin_conflict'),

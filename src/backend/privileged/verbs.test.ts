@@ -93,13 +93,13 @@ const VALID_REQUESTS = {
     verb: 'write-nft-ruleset',
     content: 'table inet filter {\n  chain input { type filter hook input priority 0; }\n}\n',
   },
-  'fail2ban-unban': { verb: 'fail2ban-unban', ip: '10.4.0.31', jail: 'tnc-bridge' },
+  'fail2ban-unban': { verb: 'fail2ban-unban', ip: '10.4.0.31', jail: 'smb-bridge' },
   'install-cert': {
     verb: 'install-cert',
     certPem: '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n',
     keyPem: '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n',
   },
-  'service-restart': { verb: 'service-restart', service: 'tnc-bridge', action: 'restart' },
+  'service-restart': { verb: 'service-restart', service: 'smb-bridge', action: 'restart' },
   'apply-update': { verb: 'apply-update', version: 'v0.1.0' },
   'self-update': {
     verb: 'self-update',
@@ -408,14 +408,14 @@ describe('validateService', () => {
     expect(validateService('t', service)).toBe(service);
   });
 
-  it.each(['sshd', 'root', 'systemd-logind', 'nginx', 'tnc-bridge-helper'])(
+  it.each(['sshd', 'root', 'systemd-logind', 'nginx', 'smb-bridge-helper'])(
     'rejects the unlisted unit %p',
     (service) => {
       expect(() => validateService('t', service)).toThrow(/is not an allowed unit/);
     },
   );
 
-  it.each(['tnc-bridge;id', '../sshd', 'x'.repeat(65), ''])(
+  it.each(['smb-bridge;id', '../sshd', 'x'.repeat(65), ''])(
     'rejects the malformed unit %p',
     (service) => {
       expect(() => validateService('t', service)).toThrow(/is not a valid unit name/);
@@ -616,9 +616,9 @@ describe('unmount-share and reload-samba defaults', () => {
 });
 
 describe('fail2ban-unban', () => {
-  it('defaults the jail to tnc-bridge', () => {
+  it('defaults the jail to smb-bridge', () => {
     expect(validateRequest({ verb: 'fail2ban-unban', ip: '10.0.0.1' }, OPTIONS)).toMatchObject({
-      jail: 'tnc-bridge',
+      jail: 'smb-bridge',
     });
   });
 
@@ -676,8 +676,8 @@ describe('validatePathWithin', () => {
   });
 
   it('rejects a prefix-collision sibling of the root', () => {
-    // `/srv/tnc-evil` starts with `/srv/tnc` as a string but is not inside it.
-    expect(() => validatePathWithin('t', 'p', '/srv/tnc', '/srv/tnc-evil/file')).toThrow(
+    // `/srv/smb-evil` starts with `/srv/smb-bridge` as a string but is not inside it.
+    expect(() => validatePathWithin('t', 'p', '/srv/smb-bridge', '/srv/smb-evil/file')).toThrow(
       /must be inside/,
     );
   });
@@ -752,10 +752,10 @@ describe('assertNoMetacharacters', () => {
 
 describe('derived paths', () => {
   it('places a mount point under the mount root', () => {
-    expect(mountPointFor('werkstatt')).toBe('/mnt/tnc-server/werkstatt');
+    expect(mountPointFor('werkstatt')).toBe('/mnt/smb-server/werkstatt');
   });
 
   it('places a cache path under the cache root', () => {
-    expect(cachePathFor('werkstatt')).toBe('/srv/tnc/werkstatt');
+    expect(cachePathFor('werkstatt')).toBe('/srv/smb-bridge/werkstatt');
   });
 });

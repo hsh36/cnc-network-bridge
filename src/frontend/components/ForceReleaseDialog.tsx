@@ -34,8 +34,9 @@ export function ForceReleaseDialog({
         <CardHeader title={<span id="release-title">Force-release this lock?</span>} />
         <CardBody className="flex flex-col gap-4 text-sm">
           <p className="text-slate-700 dark:text-slate-200">
-            Release the lock held by <strong>{lock.ownerLabel ?? lock.tncIp ?? 'unknown'}</strong>{' '}
-            on file <span className="font-mono">{lock.relPath}</span>?
+            Release the lock held by{' '}
+            <strong>{lock.ownerLabel ?? lock.machineIp ?? 'unknown'}</strong> on file{' '}
+            <span className="font-mono">{lock.relPath}</span>?
           </p>
           <div className="rounded-md border border-orange-300 bg-orange-50 p-3 text-xs text-orange-900 dark:border-orange-800 dark:bg-orange-900/30 dark:text-orange-200">
             <strong>Warning:</strong> This machine may have the file open with unsaved work. Forcing

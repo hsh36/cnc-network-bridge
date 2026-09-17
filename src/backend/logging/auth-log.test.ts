@@ -84,7 +84,7 @@ describe('log injection', () => {
   it('strips newlines from a username so a forged line cannot be written', () => {
     const line = formatAuthFailure({
       username:
-        'x\n2026-09-07T00:00:00.000+02:00 tnc-bridge[1]: accepted login for user "root" from 1.2.3.4',
+        'x\n2026-09-07T00:00:00.000+02:00 smb-bridge[1]: accepted login for user "root" from 1.2.3.4',
       ip: '192.168.1.50',
       pid: 1287,
     });

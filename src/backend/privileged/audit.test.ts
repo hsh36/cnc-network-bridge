@@ -67,7 +67,7 @@ describe('redactArgv', () => {
   });
 
   it('leaves ordinary arguments untouched, so the audit trail stays readable', () => {
-    const argv = ['/usr/bin/mount', '-t', 'cifs', '//server/share', '/mnt/tnc-server/werkstatt'];
+    const argv = ['/usr/bin/mount', '-t', 'cifs', '//server/share', '/mnt/smb-server/werkstatt'];
     expect(redactArgv(argv)).toEqual(argv);
   });
 
@@ -79,10 +79,10 @@ describe('redactArgv', () => {
 describe('buildRecord', () => {
   it('stamps the identity of the process and the invoking account', () => {
     const record = buildRecord(
-      { uid: 0, gid: 0, invoker: 'tncbridge' },
+      { uid: 0, gid: 0, invoker: 'smbbridge' },
       { verb: 'reload-samba', outcome: 'ok', durationMs: 12 },
     );
-    expect(record).toMatchObject({ uid: 0, gid: 0, invoker: 'tncbridge', outcome: 'ok' });
+    expect(record).toMatchObject({ uid: 0, gid: 0, invoker: 'smbbridge', outcome: 'ok' });
     expect(Date.parse(record.ts)).not.toBeNaN();
   });
 

@@ -10,7 +10,7 @@ import { api, ApiError } from '../lib/api-client';
 
 const ORIGIN_TONE: Record<FileVersion['origin'], BadgeTone> = {
   server: 'accent',
-  tnc: 'ok',
+  machine: 'ok',
   restore: 'warn',
   initial: 'idle',
   conflict_loser: 'error',
@@ -18,7 +18,7 @@ const ORIGIN_TONE: Record<FileVersion['origin'], BadgeTone> = {
 
 const ORIGIN_LABEL: Record<FileVersion['origin'], string> = {
   server: 'From server',
-  tnc: 'From machine',
+  machine: 'From machine',
   restore: 'Restored version',
   initial: 'Initial import',
   conflict_loser: 'Conflict loser',

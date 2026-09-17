@@ -175,11 +175,11 @@ describe('basic change reporting', () => {
   });
 
   it('honours exclude patterns against the relative path', async () => {
-    await start({ excludes: ['*.tmp', 'scratch/**', '**/.tnc-tmp-*'] });
+    await start({ excludes: ['*.tmp', 'scratch/**', '**/.smb-tmp-*'] });
 
     write('ignored.tmp', 'x');
     write('scratch/also-ignored.h', 'x');
-    write('.tnc-tmp-abc', 'x');
+    write('.smb-tmp-abc', 'x');
     write('kept.h', 'x');
     await until(() => events.length > 0);
     await sleep(200);

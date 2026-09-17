@@ -1,7 +1,7 @@
 import { DrainRegistry, RegistryClosedError } from './drain';
 
 /**
- * The drain is what makes "SIGTERM during a transfer leaves no `.tnc-tmp-*` file and no
+ * The drain is what makes "SIGTERM during a transfer leaves no `.smb-tmp-*` file and no
  * orphaned lock" true. These tests model the transfer lifecycle directly: begin, write,
  * rename, done — and assert that shutdown waits for the rename.
  */

@@ -1,4 +1,4 @@
-# CNC Network Bridge — Implementation Plan
+# SMB Bridge — Implementation Plan
 
 **Companion to** [`ARCHITECTURE.md`](./ARCHITECTURE.md) · **Task list:** [`TASKS.md`](./TASKS.md)
 **Version:** 1.0 · **Date:** 2026-09-07
@@ -112,21 +112,21 @@ CREATE TABLE shares (
   name                  TEXT NOT NULL UNIQUE,          -- ^[a-zA-Z0-9_-]{1,32}$
   enabled               INTEGER NOT NULL DEFAULT 1,
   server_unc            TEXT NOT NULL,                 -- //fileserver/cnc$/programs
-  mount_point           TEXT NOT NULL,                 -- /mnt/tnc-server/<name>
-  cache_path            TEXT NOT NULL,                 -- /srv/tnc/<name>
+  mount_point           TEXT NOT NULL,                 -- /mnt/smb-server/<name>
+  cache_path            TEXT NOT NULL,                 -- /srv/smb-bridge/<name>
   smb_domain            TEXT,
   smb_user              TEXT,
   smb_version           TEXT NOT NULL DEFAULT '3.1.1',
   smb_seal              INTEGER NOT NULL DEFAULT 1,
   conflict_mode         TEXT NOT NULL DEFAULT 'last_write_wins'
-                          CHECK (conflict_mode IN ('tnc_wins','server_wins','last_write_wins')),
+                          CHECK (conflict_mode IN ('machine_wins','server_wins','last_write_wins')),
   exclude_patterns      TEXT NOT NULL DEFAULT '[]',    -- JSON string[] (picomatch)
   scan_interval_ms      INTEGER NOT NULL DEFAULT 15000,
   bandwidth_limit_kbps  INTEGER,                       -- NULL = unlimited
   max_file_size_mb      INTEGER NOT NULL DEFAULT 512,
   read_only             INTEGER NOT NULL DEFAULT 0,    -- manual read-only
   failover_read_only    INTEGER NOT NULL DEFAULT 0,    -- set by failover controller
-  tnc_guest_ok          INTEGER NOT NULL DEFAULT 1,
+  machine_guest_ok          INTEGER NOT NULL DEFAULT 1,
   status                TEXT NOT NULL DEFAULT 'idle',  -- idle|scanning|syncing|paused|error|offline
   last_scan_at          INTEGER,
   last_error            TEXT,
@@ -162,7 +162,7 @@ CREATE TABLE locks (
   rel_path          TEXT NOT NULL,
   origin            TEXT NOT NULL CHECK (origin IN ('tnc','manual','schedule','sync')),
   owner_label       TEXT,                   -- "TNC-640-Halle2"
-  tnc_ip            TEXT,
+  machine_ip            TEXT,
   smb_pid           INTEGER,
   smb_session_id    TEXT,
   server_lock_kind  TEXT NOT NULL DEFAULT 'sidecar'
@@ -257,7 +257,7 @@ CREATE TABLE metrics_samples (
   PRIMARY KEY (ts, metric, share_id)
 ) WITHOUT ROWID;
 
-CREATE TABLE tnc_clients (
+CREATE TABLE machine_clients (
   id            INTEGER PRIMARY KEY,
   name          TEXT, mac TEXT UNIQUE, ip TEXT,
   model         TEXT,                      -- iTNC530 | TNC620 | TNC640 | other
@@ -317,13 +317,13 @@ Hard overrides, applied in order:
 
 ### 3.2 Correctness rules
 
-- **Atomicity:** every write is `<dir>/.tnc-tmp-<random>` → `fsync` → `rename()`. Never write in place.
+- **Atomicity:** every write is `<dir>/.smb-tmp-<random>` → `fsync` → `rename()`. Never write in place.
 - **Verification:** post-copy size + xxhash64 must match source, else delete temp and retry (3×, exponential backoff 1/5/25 s).
 - **Echo suppression:** before writing, register `(path, expectedSize, expectedMtime)` in an in-memory
   `EchoGuard` with a 10 s TTL. The watcher/scanner drops matching events. Without this the engine
   ping-pongs its own writes forever — this is the classic bidirectional-sync failure mode.
 - **Clock skew:** `last_write_wins` uses mtime, but mtimes come from three clocks. Ties within a
-  configurable `mtime_tolerance_ms` (default 2000) fall through to `tnc_wins`, because the operator at the
+  configurable `mtime_tolerance_ms` (default 2000) fall through to `machine_wins`, because the operator at the
   machine is the more authoritative and more recent actor. NTP is enforced by `install.sh`.
 - **Case collisions:** SMB is case-insensitive, ext4 is not. `rel_path_ci` catches `PROG.H` vs `prog.h`;
   a collision is an `error` state with an explicit log line, never a silent overwrite.
@@ -345,7 +345,7 @@ schedule entry can lower the cap during production hours. Link speed read from
 
 ## 4. Versioning
 
-Content-addressed blob store at `/var/lib/tnc-bridge/versions/<sha256[0:2]>/<sha256>`. Identical content
+Content-addressed blob store at `/var/lib/smb-bridge/versions/<sha256[0:2]>/<sha256>`. Identical content
 across paths and times is stored once. Blobs are written with the same temp+rename discipline and are
 read-only (`0440`).
 
@@ -396,7 +396,7 @@ All bodies validated by shared Zod schemas; the same schemas type the frontend c
 | GET/POST | `/certificates` · POST `/certificates/regenerate` | TLS material |
 | GET/PUT | `/firewall` · POST `/firewall/reset` | nftables rules |
 | GET | `/fail2ban/status` · POST `/fail2ban/unban` | Ban management |
-| GET/PATCH | `/tnc-clients[/:id]` | Discovered machines + DHCP reservations |
+| GET/PATCH | `/machine-clients[/:id]` | Discovered machines + DHCP reservations |
 | GET/POST/DELETE | `/tokens[/:id]` | API tokens (value shown once) |
 | GET/POST | `/setup/*` | Wizard — 410 Gone once completed |
 | POST | `/system/{restart-service,reboot}` | Controlled restarts |
@@ -428,7 +428,7 @@ smb.tnc.dos_charset          CP850       smb.tnc.workgroup           WORKGROUP
 sync.conflict_mode           last_write_wins   sync.mtime_tolerance_ms   2000
 sync.scan_interval_ms        15000       sync.concurrency            4
 sync.bandwidth_limit_kbps    null        sync.protect_deletes        true
-sync.exclude_patterns        ["**/.DS_Store","**/Thumbs.db","**/~$*","**/.tnc-tmp-*"]
+sync.exclude_patterns        ["**/.DS_Store","**/Thumbs.db","**/~$*","**/.smb-tmp-*"]
 sync.failover_read_only      true        sync.max_file_size_mb       512
 sync.policies                {"bandwidthWindows":[],"priorityRules":[],"excludeRules":[],"readOnlyRules":[]}
 
@@ -507,7 +507,7 @@ therefore written first (T2) and treated as the interface between the two workst
 | R8 | **Clock skew** breaks last-write-wins. | Medium | High | `chrony` installed and enabled by `install.sh`; `mtime_tolerance_ms` tie-break; hash comparison decides "changed", mtime only decides "which won"; skew > 60 s raises a health warning. |
 | R9 | **SD-card wear / corruption** from WAL + versions. | Medium | High | Recommend NVMe/SSD in docs; `synchronous=NORMAL` not `OFF`; nightly `PRAGMA integrity_check` + auto-backup of `bridge.db`; version store relocatable to external storage. |
 | R10 | **Bad update bricks the appliance.** | Medium | **Fatal** | Atomic release directories + `current` symlink; checksum verification before swap; post-restart health gate (120 s) with automatic symlink rollback; previous release retained; `update_history` records everything. |
-| R11 | **Admin lockout** via bad cert upload or firewall rule. | Medium | High | Cert validated (key/cert match, parseable, not expired) *before* replacement; firewall changes require confirm-within-60 s or auto-revert; `tnc-bridge-recover` CLI resets cert/firewall/password from console. |
+| R11 | **Admin lockout** via bad cert upload or firewall rule. | Medium | High | Cert validated (key/cert match, parseable, not expired) *before* replacement; firewall changes require confirm-within-60 s or auto-revert; `smb-bridge-recover` CLI resets cert/firewall/password from console. |
 | R12 | **Disk fills** (versions + logs + cache) and sync fails hard. | Medium | Medium | Disk watermarks: 85 % warn, 92 % stop accepting new versions + aggressive prune, 96 % pause sync in read-only. Free space checked before every transfer. |
 | R13 | **Large-file / bulk-import stalls** the queue behind one 500 MB file. | Medium | Medium | Priority queue (small files first), per-file size cap, separate lane for bulk; progress events over SSE. |
 | R14 | **`better-sqlite3` / `@node-rs/argon2` lack ARM64 prebuilds** for the installed Node. | Low | High | `install.sh` installs `build-essential python3` unconditionally; build verified in CI on `linux/arm64` via QEMU; Node version pinned so prebuild lookups are deterministic. |

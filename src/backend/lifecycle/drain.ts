@@ -1,7 +1,7 @@
 /**
  * In-flight work tracking, so shutdown can wait for it.
  *
- * A file transfer writes to `.tnc-tmp-<id>` and renames it into place when complete. If
+ * A file transfer writes to `.smb-tmp-<id>` and renames it into place when complete. If
  * the process exits between those two steps, the temp file survives on the share — and
  * on a TNC that means an operator sees a file the control cannot open, in a directory
  * they cannot easily clean up. The same applies to locks: a lock row written to SQLite

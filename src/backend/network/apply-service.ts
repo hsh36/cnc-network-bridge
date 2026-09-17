@@ -24,7 +24,7 @@ import { type PreflightIssue, preflight } from './preflight';
  * it did not, the change cannot cut this connection and applying it outright is honest.
  */
 
-export type NetworkSideName = 'lan' | 'tnc';
+export type NetworkSideName = 'lan' | 'machine';
 
 export class NetworkApplyError extends Error {
   constructor(

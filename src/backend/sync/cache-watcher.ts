@@ -80,7 +80,7 @@ export const INOTIFY_LIMIT_REMEDIATION =
   'The inotify watch limit has been reached (ENOSPC): the kernel refused to watch any ' +
   'more directories. Raise the limit with `sudo sysctl -w fs.inotify.max_user_watches=524288` ' +
   'and make it permanent by adding `fs.inotify.max_user_watches=524288` to ' +
-  '/etc/sysctl.d/99-tnc-bridge.conf. The watcher has fallen back to polling, which still ' +
+  '/etc/sysctl.d/99-smb-bridge.conf. The watcher has fallen back to polling, which still ' +
   'detects changes but uses more CPU and reports them more slowly.';
 
 export type WatchEventType =
@@ -288,7 +288,7 @@ export class CacheWatcher extends EventEmitter {
       },
       // A predicate over the *relative* path, not chokidar's default matching against
       // the absolute one. Otherwise `*.tmp` would silently never match, because the
-      // string it is tested against begins `/srv/tnc-cache/...`, and the exclude list
+      // string it is tested against begins `/srv/smb-cache/...`, and the exclude list
       // would mean two different things in the scanner and here.
       ignored: this.isExcluded,
       // A cache directory is not a place for symlinks, and following one out of the

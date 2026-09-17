@@ -23,37 +23,37 @@ export interface AuthLogSample {
 export const AUTH_LOG_SAMPLES: readonly AuthLogSample[] = [
   {
     description: 'a wrong password from an IPv4 address',
-    line: '2026-09-07T14:23:11.482+02:00 tnc-bridge[1287]: authentication failure for user "admin" from 192.168.1.50 (reason: invalid_password)',
+    line: '2026-09-07T14:23:11.482+02:00 smb-bridge[1287]: authentication failure for user "admin" from 192.168.1.50 (reason: invalid_password)',
     shouldMatch: true,
     expectedHost: '192.168.1.50',
   },
   {
     description: 'an unknown user',
-    line: '2026-09-07T14:23:14.902+02:00 tnc-bridge[1287]: authentication failure for user "root" from 192.168.1.50 (reason: unknown_user)',
+    line: '2026-09-07T14:23:14.902+02:00 smb-bridge[1287]: authentication failure for user "root" from 192.168.1.50 (reason: unknown_user)',
     shouldMatch: true,
     expectedHost: '192.168.1.50',
   },
   {
     description: 'a failure with no reason recorded',
-    line: '2026-09-07T14:23:19.117+02:00 tnc-bridge[1287]: authentication failure for user "admin" from 10.0.0.7',
+    line: '2026-09-07T14:23:19.117+02:00 smb-bridge[1287]: authentication failure for user "admin" from 10.0.0.7',
     shouldMatch: true,
     expectedHost: '10.0.0.7',
   },
   {
     description: 'a failure from an IPv6 address',
-    line: '2026-09-07T14:24:02.004+02:00 tnc-bridge[1287]: authentication failure for user "admin" from 2001:db8::42 (reason: invalid_password)',
+    line: '2026-09-07T14:24:02.004+02:00 smb-bridge[1287]: authentication failure for user "admin" from 2001:db8::42 (reason: invalid_password)',
     shouldMatch: true,
     expectedHost: '2001:db8::42',
   },
   {
     description: 'an empty username, which a malformed client can send',
-    line: '2026-09-07T14:24:30.771+02:00 tnc-bridge[1287]: authentication failure for user "" from 192.168.1.99 (reason: unknown_user)',
+    line: '2026-09-07T14:24:30.771+02:00 smb-bridge[1287]: authentication failure for user "" from 192.168.1.99 (reason: unknown_user)',
     shouldMatch: true,
     expectedHost: '192.168.1.99',
   },
   {
     description: 'a rejected API token',
-    line: '2026-09-07T14:25:01.233+02:00 tnc-bridge[1287]: authentication failure for user "token" from 192.168.1.77 (reason: invalid_token)',
+    line: '2026-09-07T14:25:01.233+02:00 smb-bridge[1287]: authentication failure for user "token" from 192.168.1.77 (reason: invalid_token)',
     shouldMatch: true,
     expectedHost: '192.168.1.77',
   },
@@ -61,22 +61,22 @@ export const AUTH_LOG_SAMPLES: readonly AuthLogSample[] = [
   // Negatives — matching any of these would ban legitimate users.
   {
     description: 'a successful login',
-    line: '2026-09-07T14:26:00.010+02:00 tnc-bridge[1287]: accepted login for user "admin" from 192.168.1.50',
+    line: '2026-09-07T14:26:00.010+02:00 smb-bridge[1287]: accepted login for user "admin" from 192.168.1.50',
     shouldMatch: false,
   },
   {
     description: 'a logout',
-    line: '2026-09-07T14:40:00.010+02:00 tnc-bridge[1287]: session closed for user "admin" from 192.168.1.50',
+    line: '2026-09-07T14:40:00.010+02:00 smb-bridge[1287]: session closed for user "admin" from 192.168.1.50',
     shouldMatch: false,
   },
   {
     description: 'the informational lockout notice',
-    line: '2026-09-07T14:23:25.500+02:00 tnc-bridge[1287]: too many authentication failures for user "admin" from 192.168.1.50',
+    line: '2026-09-07T14:23:25.500+02:00 smb-bridge[1287]: too many authentication failures for user "admin" from 192.168.1.50',
     shouldMatch: false,
   },
   {
     description: 'a forged line embedded in a username, which must not be counted twice',
-    line: '2026-09-07T14:27:00.000+02:00 tnc-bridge[1287]: authentication failure for user "admin_ from 8.8.8.8 _" from 192.168.1.50 (reason: invalid_password)',
+    line: '2026-09-07T14:27:00.000+02:00 smb-bridge[1287]: authentication failure for user "admin_ from 8.8.8.8 _" from 192.168.1.50 (reason: invalid_password)',
     shouldMatch: true,
     // The address must come from the real field, never from the attacker-controlled one.
     expectedHost: '192.168.1.50',
@@ -88,7 +88,7 @@ export const AUTH_LOG_SAMPLES: readonly AuthLogSample[] = [
   },
   {
     description: 'a sync log line that happens to mention a failure',
-    line: '2026-09-07T14:29:00.000+02:00 tnc-bridge[1287]: transfer failure for programs/part1.h from 192.168.1.50',
+    line: '2026-09-07T14:29:00.000+02:00 smb-bridge[1287]: transfer failure for programs/part1.h from 192.168.1.50',
     shouldMatch: false,
   },
 ];

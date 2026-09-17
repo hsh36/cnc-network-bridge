@@ -1,6 +1,6 @@
 import { useTranslation } from '../hooks/useTranslation';
 import { SharesSection } from '../components/SharesSection';
-import { TncSmbGlobals } from '../components/TncSmbGlobals';
+import { MachineSmbGlobals } from '../components/MachineSmbGlobals';
 import { SyncSettings } from '../components/settings/SyncSettings';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 
@@ -30,7 +30,7 @@ export function SharesPage(): JSX.Element {
 
       <SharesSection />
 
-      <TncSmbGlobals />
+      <MachineSmbGlobals />
 
       <Card>
         <CardHeader title={t('sync_settings_title')} subtitle={t('sync_settings_hint')} />

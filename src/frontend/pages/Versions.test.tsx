@@ -88,7 +88,7 @@ describe('formatAge', () => {
 describe('Versions page', () => {
   it('lists version history with origin and size', async () => {
     mockApi([
-      version({ id: 2, origin: 'tnc', size: 4096, createdAt: NOW_SECONDS }),
+      version({ id: 2, origin: 'machine', size: 4096, createdAt: NOW_SECONDS }),
       version({ id: 1, origin: 'server', size: 2048, createdAt: NOW_SECONDS - 86_400 }),
     ]);
 

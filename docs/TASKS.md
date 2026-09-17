@@ -1,4 +1,4 @@
-# CNC Network Bridge — Task Breakdown
+# SMB Bridge — Task Breakdown
 
 64 tasks · 362 developer-hours · 4 phases
 Companion to [`ARCHITECTURE.md`](./ARCHITECTURE.md) and [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)
@@ -59,7 +59,7 @@ fully test it before the transfer layer exists.
 ### T5: Config Manager + secret encryption
 ├─ Typed `get`/`set` over the `config` table with Zod validation and defaults; change-event emitter so
    subsystems react to config updates without restart; AES-256-GCM envelope for secrets keyed from
-   `/etc/tnc-bridge/secret.key`; API-safe redaction (`********` out, sentinel in = unchanged).
+   `/etc/smb-bridge/secret.key`; API-safe redaction (`********` out, sentinel in = unchanged).
 ├─ Dependencies: T2, T4
 ├─ Owner: Opus · Prio: P0 · Est: 5 h
 └─ AC: invalid values rejected with a useful message; secrets never appear in logs, API responses, or error output (asserted by test); subscribers fire on change.
@@ -87,7 +87,7 @@ fully test it before the transfer layer exists.
    responsiveness, `--check` self-test mode.
 ├─ Dependencies: T5, T6
 ├─ Owner: Opus · Prio: P0 · Est: 4 h
-└─ AC: clean start/stop with no dangling handles; SIGTERM during an active transfer leaves no `.tnc-tmp-*` files and no orphaned locks; watchdog stops pinging when the loop is blocked.
+└─ AC: clean start/stop with no dangling handles; SIGTERM during an active transfer leaves no `.smb-tmp-*` files and no orphaned locks; watchdog stops pinging when the loop is blocked.
 
 ### T9: CI pipeline
 ├─ GitHub Actions: lint, type-check, unit + API tests, coverage gate, frontend build, `linux/arm64` native
@@ -127,7 +127,7 @@ server; a file open on the TNC is locked and never overwritten; the HTTPS dashbo
    Written via the helper, `testparm`-validated **before** activation, previous config kept for rollback.
 ├─ Dependencies: T5, T7
 ├─ Owner: Opus · Prio: P0 · Est: 6 h
-└─ AC: `testparm -s` clean; smbd verified listening on the TNC interface **only** (asserted by test — a LAN-side SMB1 listener is the vulnerability this product exists to remove); invalid config never activated.
+└─ AC: `testparm -s` clean; smbd verified listening on the machine interface **only** (asserted by test — a LAN-side SMB1 listener is the vulnerability this product exists to remove); invalid config never activated.
 
 ### T13: Samba service control & smbstatus
 ├─ Reload (`smbcontrol all reload-config`) vs restart decisions, service state, `smbstatus --json` parsing
@@ -180,7 +180,7 @@ server; a file open on the TNC is locked and never overwritten; the HTTPS dashbo
 └─ AC: every row of the verdict table covered by an explicit unit test; 100 % branch coverage; property-based test asserts the invariant *no verdict ever discards data without a version capture*; zero I/O imports in the module.
 
 ### T19: Transfer executor
-├─ Streamed copy to `.tnc-tmp-<random>` → `fsync` → `rename()`; post-copy size + xxhash64 verification;
+├─ Streamed copy to `.smb-tmp-<random>` → `fsync` → `rename()`; post-copy size + xxhash64 verification;
    mtime/permission preservation; retry 3× with exponential backoff on transient errors; free-space
    precheck; temp cleanup on every failure path and on startup; directory create/delete; rename optimisation.
 ├─ Dependencies: T16, T10, T18
@@ -229,7 +229,7 @@ server; a file open on the TNC is locked and never overwritten; the HTTPS dashbo
 
 ### T25: TNC lock source
 ├─ Audit `open`(write intent) → acquire, `close` → release after `release_linger_s`; periodic `smbstatus`
-   reconciliation as the authoritative correction for missed events; machine identification by IP → `tnc_clients`;
+   reconciliation as the authoritative correction for missed events; machine identification by IP → `machine_clients`;
    handling of a TNC that opens a file and never closes it (TTL).
 ├─ Dependencies: T14, T13, T24
 ├─ Owner: Opus · Prio: P0 · Est: 6 h
@@ -310,15 +310,15 @@ server; a file open on the TNC is locked and never overwritten; the HTTPS dashbo
 └─ AC: interface changes survive reboot; a config that breaks admin reachability auto-reverts (no lockout); NIC identity is stable across reboots regardless of enumeration order.
 
 ### T35: DHCP server management
-├─ dnsmasq config generation bound to the TNC interface only; range, lease time, gateway, DNS; static
-   reservations from `tnc_clients`; lease-file parsing → discovered machines; enable/disable without
+├─ dnsmasq config generation bound to the machine interface only; range, lease time, gateway, DNS; static
+   reservations from `machine_clients`; lease-file parsing → discovered machines; enable/disable without
    touching the LAN side.
 ├─ Dependencies: T34, T7
 ├─ Owner: Sonnet · Prio: P2 · Est: 5 h
 └─ AC: a TNC receives an address on the TNC segment; dnsmasq never listens on the LAN interface (asserted); leases appear in the UI; reservations survive restart.
 
 ### T36: Firewall manager
-├─ nftables `table inet tnc_bridge`, additive to a default-accept policy per spec; rule CRUD (proto, port,
+├─ nftables `table inet smb_bridge`, additive to a default-accept policy per spec; rule CRUD (proto, port,
    source, interface, action); atomic ruleset apply with `nft -c` validation first; confirm-or-revert
    protection for admin lockout (R11); reset-to-default.
 ├─ Dependencies: T7
@@ -326,14 +326,14 @@ server; a file open on the TNC is locked and never overwritten; the HTTPS dashbo
 └─ AC: rules apply atomically and persist across reboot; an invalid ruleset is rejected before load; a rule that would block the admin's own session triggers the revert timer.
 
 ### T37: Fail2Ban integration
-├─ Ship `filter.d/tnc-bridge.conf` (regex against T6's `auth.log`) and `jail.d/tnc-bridge.local`
+├─ Ship `filter.d/smb-bridge.conf` (regex against T6's `auth.log`) and `jail.d/smb-bridge.local`
    (`maxretry=5 findtime=600 bantime=3600`); status/banned-IP query and unban via helper; enable/disable.
 ├─ Dependencies: T28, T7, T6
 ├─ Owner: Sonnet · Prio: P2 · Est: 4 h
 └─ AC: `fail2ban-regex` matches real log lines from a shared fixture; 5 failed logins ban the IP; unban from the UI works.
 
 ### T38: Versioning engine
-├─ Content-addressed blob store `/var/lib/tnc-bridge/versions/<ab>/<sha256>`, temp+rename writes, `0440`
+├─ Content-addressed blob store `/var/lib/smb-bridge/versions/<ab>/<sha256>`, temp+rename writes, `0440`
    blobs, dedup by hash; capture hooks at all four trigger points (pre-PULL, pre-PUSH, conflict-loser,
    initial); metadata rows; disk-pressure awareness (R12).
 ├─ Dependencies: T16, T19, T4
@@ -370,7 +370,7 @@ server; a file open on the TNC is locked and never overwritten; the HTTPS dashbo
 
 ### T43: Auto-update engine
 ├─ GitHub Releases polling on the configured channel; download + **SHA256 manifest verification before
-   anything is swapped**; extract to `/opt/tnc-bridge/releases/<ver>`; `npm ci --omit=dev`; DB migration;
+   anything is swapped**; extract to `/opt/smb-bridge/releases/<ver>`; `npm ci --omit=dev`; DB migration;
    flip the `current` symlink; `systemctl restart`; **health gate** polling `/health` for up to 120 s;
    automatic symlink rollback + restart on failure; retain the previous release; full `update_history`.
 ├─ Dependencies: T7, T9, T41, T8
@@ -450,7 +450,7 @@ server; a file open on the TNC is locked and never overwritten; the HTTPS dashbo
 
 ### T53: Setup wizard
 ├─ Backend state machine + UI steps: admin password → interface selection (live NIC picker with MAC/link) →
-   TNC network + optional DHCP → server share + AD credentials + **connectivity test** → share/sync config →
+   machine network + optional DHCP → server share + AD credentials + **connectivity test** → share/sync config →
    certificate → review & apply. Resumable, validated per step, `/setup/*` returns 410 once completed.
 ├─ Dependencies: T47, T27, T28, T34, T11, T12
 ├─ Owner: Opus · Prio: P3 · Est: 8 h
@@ -458,7 +458,7 @@ server; a file open on the TNC is locked and never overwritten; the HTTPS dashbo
 
 ### T54: install.sh — the one-liner
 ├─ OS/arch/model verification; apt deps (samba, cifs-utils, dnsmasq, nftables, fail2ban, chrony,
-   build-essential, python3 — R14); NodeSource **Node 22** pin; `apt-mark hold samba` (R1); `tncbridge`
+   build-essential, python3 — R14); NodeSource **Node 22** pin; `apt-mark hold samba` (R1); `smbbridge`
    user; directory tree with correct ownership/modes; `secret.key` generation; sysctl
    (`fs.inotify.max_user_watches=524288`); self-signed cert; DB init; systemd install + enable; idempotent
    re-run; clear post-install message with the wizard URL. Must run correctly under `curl … | bash`.
@@ -467,7 +467,7 @@ server; a file open on the TNC is locked and never overwritten; the HTTPS dashbo
 └─ AC: **clean Raspberry Pi OS Lite 64-bit → working bridge with a single command**; re-running is safe; every failure exits non-zero with an actionable message and no half-configured state.
 
 ### T55: systemd units & packaging
-├─ `tnc-bridge.service` with `Restart=always`, `RestartSec=5`, `WatchdogSec=60`,
+├─ `smb-bridge.service` with `Restart=always`, `RestartSec=5`, `WatchdogSec=60`,
    `AmbientCapabilities=CAP_NET_BIND_SERVICE`, and hardening (`NoNewPrivileges`, `ProtectSystem=strict`,
    `ProtectHome`, `PrivateTmp`, `ReadWritePaths` limited to our four runtime paths); `systemd-setup.sh`;
    sudoers, Fail2Ban, and config templates packaged.
@@ -478,7 +478,7 @@ server; a file open on the TNC is locked and never overwritten; the HTTPS dashbo
 ### T56: Backup, restore & recovery CLI
 ├─ Config export/import (secrets re-encrypted, never exported in plaintext), DB backup via SQLite
    `.backup`, scheduled nightly backup, `uninstall.sh` with a data-retention choice, and
-   **`tnc-bridge-recover`** — a console tool to reset the admin password, regenerate the certificate, and
+   **`smb-bridge-recover`** — a console tool to reset the admin password, regenerate the certificate, and
    flush the firewall (the answer to R11 lockout).
 ├─ Dependencies: T55, T5, T41
 ├─ Owner: Sonnet · Prio: P3 · Est: 4 h

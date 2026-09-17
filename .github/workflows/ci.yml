@@ -130,9 +130,9 @@ jobs:
           set -euo pipefail
           # Copy the sudoers file and validate syntax with visudo.
           # On the actual system, this file is installed 0440 root:root by the installer.
-          cp install/sudoers.d/tnc-bridge /tmp/tnc-bridge-sudoers
-          chmod 0440 /tmp/tnc-bridge-sudoers
-          sudo visudo -cf /tmp/tnc-bridge-sudoers
+          cp install/sudoers.d/smb-bridge /tmp/smb-bridge-sudoers
+          chmod 0440 /tmp/smb-bridge-sudoers
+          sudo visudo -cf /tmp/smb-bridge-sudoers
 
       - name: Assert the helper never reaches a shell
         run: |

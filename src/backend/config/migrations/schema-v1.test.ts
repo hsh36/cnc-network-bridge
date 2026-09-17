@@ -27,8 +27,8 @@ function insertShare(overrides: Record<string, string | number | null> = {}): nu
   const values = {
     name: 'programs',
     server_unc: '//fileserver/cnc$/programs',
-    mount_point: '/mnt/tnc-server/programs',
-    cache_path: '/srv/tnc/programs',
+    mount_point: '/mnt/smb-server/programs',
+    cache_path: '/srv/smb-bridge/programs',
     created_at: now,
     updated_at: now,
     ...overrides,
@@ -58,8 +58,8 @@ describe('migration application', () => {
     // 001_init, 002_network_config, 003_dhcp, 004_network_per_side,
     // 005_share_credentials, 006_os_update_schedule, 007_share_tnc_access,
     // 008_fixed_update_repo, 009_field_units_take_betas, 010_deletions_propagate,
-    // 011_enforced_locks, 012_two_network_modes.
-    expect(db.userVersion).toBe(12);
+    // 011_enforced_locks, 012_two_network_modes, 013_machine_side_naming.
+    expect(db.userVersion).toBe(13);
   });
 
   it('creates all fourteen tables from §2, plus the log sink and the ledger', () => {
@@ -82,7 +82,7 @@ describe('migration application', () => {
       'sessions',
       'shares',
       'sync_events',
-      'tnc_clients',
+      'machine_clients',
       'update_history',
     ];
     expect(planTables).toHaveLength(14);
@@ -143,7 +143,7 @@ describe('shares constraints', () => {
   it('rejects a duplicate share name', () => {
     insertShare();
     expectConstraintViolation(() =>
-      insertShare({ mount_point: '/mnt/tnc-server/other', cache_path: '/srv/tnc/other' }),
+      insertShare({ mount_point: '/mnt/smb-server/other', cache_path: '/srv/smb-bridge/other' }),
     );
   });
 
@@ -151,17 +151,20 @@ describe('shares constraints', () => {
     // Two shares syncing into one directory would interleave silently.
     insertShare();
     expectConstraintViolation(() =>
-      insertShare({ name: 'other', mount_point: '/mnt/tnc-server/other' }),
+      insertShare({ name: 'other', mount_point: '/mnt/smb-server/other' }),
     );
   });
 
   it('rejects an unknown conflict mode', () => {
-    expectConstraintViolation(() => insertShare({ conflict_mode: 'tnc_always_wins' }));
+    expectConstraintViolation(() => insertShare({ conflict_mode: 'machine_always_wins' }));
   });
 
-  it.each(['tnc_wins', 'server_wins', 'last_write_wins'])('accepts conflict mode %s', (mode) => {
-    expect(insertShare({ conflict_mode: mode })).toBeGreaterThan(0);
-  });
+  it.each(['machine_wins', 'server_wins', 'last_write_wins'])(
+    'accepts conflict mode %s',
+    (mode) => {
+      expect(insertShare({ conflict_mode: mode })).toBeGreaterThan(0);
+    },
+  );
 
   it('rejects an unknown status', () => {
     expectConstraintViolation(() => insertShare({ status: 'confused' }));
@@ -200,7 +203,7 @@ describe('locks — one active lock per path', () => {
     shareId = insertShare();
   });
 
-  const acquire = (relPath: string, origin = 'tnc'): number =>
+  const acquire = (relPath: string, origin = 'machine'): number =>
     Number(
       db.run(
         `INSERT INTO locks (share_id, rel_path, origin, acquired_at)
@@ -222,15 +225,15 @@ describe('locks — one active lock per path', () => {
   it('allows the same path to be locked in a different share', () => {
     const other = insertShare({
       name: 'other',
-      mount_point: '/mnt/tnc-server/other',
-      cache_path: '/srv/tnc/other',
+      mount_point: '/mnt/smb-server/other',
+      cache_path: '/srv/smb-bridge/other',
     });
     acquire('programs/part1.h');
     expect(
       Number(
         db.run(
           `INSERT INTO locks (share_id, rel_path, origin, acquired_at)
-           VALUES (@shareId, @relPath, 'tnc', @acquiredAt)`,
+           VALUES (@shareId, @relPath, 'machine', @acquiredAt)`,
           { shareId: other, relPath: 'programs/part1.h', acquiredAt: now },
         ).lastInsertRowid,
       ),
@@ -258,7 +261,7 @@ describe('locks — one active lock per path', () => {
     expectConstraintViolation(() =>
       db.run(
         `INSERT INTO locks (share_id, rel_path, origin, acquired_at, server_lock_kind)
-         VALUES (@shareId, 'a.h', 'tnc', @ts, 'telepathy')`,
+         VALUES (@shareId, 'a.h', 'machine', @ts, 'telepathy')`,
         { shareId, ts: now },
       ),
     );
@@ -324,7 +327,7 @@ describe('cascading deletes', () => {
       { shareId },
     );
     db.run(
-      "INSERT INTO locks (share_id, rel_path, origin, acquired_at) VALUES (@shareId, 'a.h', 'tnc', @ts)",
+      "INSERT INTO locks (share_id, rel_path, origin, acquired_at) VALUES (@shareId, 'a.h', 'machine', @ts)",
       { shareId, ts: now },
     );
     db.run(
@@ -440,9 +443,11 @@ describe('other enumerations', () => {
     );
   });
 
-  it('rejects an unknown TNC model but allows null', () => {
-    expectConstraintViolation(() => db.run("INSERT INTO tnc_clients (model) VALUES ('TNC999')"));
-    expect(() => db.run('INSERT INTO tnc_clients (model) VALUES (NULL)')).not.toThrow();
+  it('rejects an unknown control model but allows null', () => {
+    expectConstraintViolation(() =>
+      db.run("INSERT INTO machine_clients (model) VALUES ('TNC999')"),
+    );
+    expect(() => db.run('INSERT INTO machine_clients (model) VALUES (NULL)')).not.toThrow();
   });
 
   it('rejects an unknown log level and source', () => {

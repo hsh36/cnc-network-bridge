@@ -40,9 +40,9 @@ beforeEach(() => {
     `INSERT INTO shares (id, name, enabled, server_unc, mount_point, cache_path,
                          smb_version, smb_seal, conflict_mode, exclude_patterns,
                          scan_interval_ms, bandwidth_limit_kbps, max_file_size_mb,
-                         tnc_guest_ok, created_at, updated_at)
-     VALUES (1, 'werkstatt', 1, '//server/cnc', '/mnt/tnc-server/werkstatt',
-             '/srv/tnc/werkstatt', '3.1.1', 1, 'last_write_wins', '[]',
+                         machine_guest_ok, created_at, updated_at)
+     VALUES (1, 'werkstatt', 1, '//server/cnc', '/mnt/smb-server/werkstatt',
+             '/srv/smb-bridge/werkstatt', '3.1.1', 1, 'last_write_wins', '[]',
              5000, NULL, 100, 0, 0, 0)`,
   );
   store = new SqliteBaseStore(db, 1);
@@ -178,9 +178,9 @@ describe('paths', () => {
       `INSERT INTO shares (id, name, enabled, server_unc, mount_point, cache_path,
                            smb_version, smb_seal, conflict_mode, exclude_patterns,
                            scan_interval_ms, bandwidth_limit_kbps, max_file_size_mb,
-                           tnc_guest_ok, created_at, updated_at)
-       VALUES (2, 'buero', 1, '//server/buero', '/mnt/tnc-server/buero',
-               '/srv/tnc/buero', '3.1.1', 1, 'last_write_wins', '[]',
+                           machine_guest_ok, created_at, updated_at)
+       VALUES (2, 'buero', 1, '//server/buero', '/mnt/smb-server/buero',
+               '/srv/smb-bridge/buero', '3.1.1', 1, 'last_write_wins', '[]',
                5000, NULL, 100, 0, 0, 0)`,
     );
     store.set('werkstatt.h', record());

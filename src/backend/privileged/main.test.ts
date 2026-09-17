@@ -247,9 +247,9 @@ describe('successful dispatch', () => {
   });
 
   it('records the invoking account from SUDO_USER', () => {
-    const s = setup({ request: RELOAD, env: { SUDO_USER: 'tncbridge' } });
+    const s = setup({ request: RELOAD, env: { SUDO_USER: 'smbbridge' } });
     runHelper(s.io, s.deps, s.sink);
-    expect(s.sink.records[0]).toMatchObject({ invoker: 'tncbridge' });
+    expect(s.sink.records[0]).toMatchObject({ invoker: 'smbbridge' });
   });
 
   /** The whole point of the audit trail is that secrets do not land in it. */

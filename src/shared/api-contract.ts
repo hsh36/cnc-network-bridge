@@ -69,7 +69,7 @@ import {
   testNetworkResponseSchema,
   testSmbRequestSchema,
   testSmbResponseSchema,
-  tncClientSchema,
+  machineClientSchema,
   unbanRequestSchema,
   updateHistoryEntrySchema,
   updateHistoryQuerySchema,
@@ -78,7 +78,7 @@ import {
   updateStatusSchema,
   osUpdateStatusSchema,
   runOsUpdateRequestSchema,
-  updateTncClientRequestSchema,
+  updateMachineClientRequestSchema,
   uploadCertificateRequestSchema,
   type ConfigSectionName,
 } from './schemas';
@@ -774,30 +774,30 @@ export const apiContract = {
   // -------------------------------------------------------------------------
   // Discovered TNC machines
   // -------------------------------------------------------------------------
-  'tncClients.list': {
+  'machineClients.list': {
     method: 'GET',
-    path: '/tnc-clients',
+    path: '/machine-clients',
     summary: 'Machines seen on the TNC segment, with their DHCP reservations.',
     auth: 'session-or-token',
     query: paginationQuerySchema,
-    response: paginated(tncClientSchema),
+    response: paginated(machineClientSchema),
   },
-  'tncClients.get': {
+  'machineClients.get': {
     method: 'GET',
-    path: '/tnc-clients/:id',
+    path: '/machine-clients/:id',
     summary: 'One discovered machine.',
     auth: 'session-or-token',
     params: idParams,
-    response: tncClientSchema,
+    response: machineClientSchema,
   },
-  'tncClients.update': {
+  'machineClients.update': {
     method: 'PATCH',
-    path: '/tnc-clients/:id',
+    path: '/machine-clients/:id',
     summary: 'Name a machine, set its model, or pin a DHCP reservation.',
     auth: 'session',
     params: idParams,
-    body: updateTncClientRequestSchema,
-    response: tncClientSchema,
+    body: updateMachineClientRequestSchema,
+    response: machineClientSchema,
     mutates: true,
   },
 

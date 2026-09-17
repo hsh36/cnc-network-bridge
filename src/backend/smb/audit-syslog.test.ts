@@ -15,9 +15,9 @@ import {
 
 // A realistic line: PRI for LOCAL5/notice, RFC3164 header, Samba tag, then the payload
 // whose first three fields come from `full_audit:prefix = %I|%u|%S`.
-const line = (payload: string): string => `<173>Sep  7 10:00:01 tnc-bridge smbd_audit: ${payload}`;
+const line = (payload: string): string => `<173>Sep  7 10:00:01 smb-bridge smbd_audit: ${payload}`;
 
-const OPEN = '192.168.42.50|tnc|programs|open|ok|w|12345.H';
+const OPEN = '192.168.42.50|machine|programs|open|ok|w|12345.H';
 
 // ---------------------------------------------------------------------------
 // Envelope
@@ -41,7 +41,7 @@ describe('stripSyslogEnvelope', () => {
   });
 
   it('accepts the ISO-timestamp template', () => {
-    const iso = `<173>2026-09-07T10:00:01.123456+02:00 tnc-bridge smbd_audit: ${OPEN}`;
+    const iso = `<173>2026-09-07T10:00:01.123456+02:00 smb-bridge smbd_audit: ${OPEN}`;
     expect(stripSyslogEnvelope(iso).payload).toBe(OPEN);
   });
 
@@ -62,7 +62,7 @@ describe('parseAuditLine', () => {
       operation: 'open',
       result: 'ok',
       clientIp: '192.168.42.50',
-      user: 'tnc',
+      user: 'machine',
       share: 'programs',
       path: '12345.H',
       mode: 'w',
@@ -71,25 +71,25 @@ describe('parseAuditLine', () => {
   });
 
   it('parses an open with no mode field', () => {
-    const event = parseAuditLine(line('192.168.42.50|tnc|programs|open|ok|12345.H'));
+    const event = parseAuditLine(line('192.168.42.50|machine|programs|open|ok|12345.H'));
     expect(event).toMatchObject({ path: '12345.H', mode: null });
   });
 
   it.each(['close', 'write', 'pwrite', 'unlink', 'mkdir', 'rmdir'])(
     'parses a %s event',
     (operation) => {
-      const event = parseAuditLine(line(`10.0.0.1|tnc|programs|${operation}|ok|sub/12345.H`));
+      const event = parseAuditLine(line(`10.0.0.1|machine|programs|${operation}|ok|sub/12345.H`));
       expect(event).toMatchObject({ operation, path: 'sub/12345.H' });
     },
   );
 
   it('parses a rename with both paths', () => {
-    const event = parseAuditLine(line('10.0.0.1|tnc|programs|rename|ok|old.H|new.H'));
+    const event = parseAuditLine(line('10.0.0.1|machine|programs|rename|ok|old.H|new.H'));
     expect(event).toMatchObject({ operation: 'rename', path: 'old.H', newPath: 'new.H' });
   });
 
   it('records a failed operation without discarding it', () => {
-    const event = parseAuditLine(line('10.0.0.1|tnc|programs|open|fail|12345.H'));
+    const event = parseAuditLine(line('10.0.0.1|machine|programs|open|fail|12345.H'));
     expect(event?.result).toBe('fail');
   });
 
@@ -97,8 +97,8 @@ describe('parseAuditLine', () => {
     for (const operation of AUDIT_OPERATIONS) {
       const payload =
         operation === 'rename'
-          ? `10.0.0.1|tnc|programs|${operation}|ok|a.H|b.H`
-          : `10.0.0.1|tnc|programs|${operation}|ok|a.H`;
+          ? `10.0.0.1|machine|programs|${operation}|ok|a.H|b.H`
+          : `10.0.0.1|machine|programs|${operation}|ok|a.H`;
       expect(parseAuditLine(line(payload))?.operation).toBe(operation);
     }
   });
@@ -106,23 +106,23 @@ describe('parseAuditLine', () => {
   it('keeps a filename containing a pipe intact', () => {
     // Samba does not escape the delimiter. Taking args[0] would truncate "Teil|2.H"
     // to "Teil" and lock the wrong path — or no path at all.
-    const event = parseAuditLine(line('10.0.0.1|tnc|programs|close|ok|Teil|2.H'));
+    const event = parseAuditLine(line('10.0.0.1|machine|programs|close|ok|Teil|2.H'));
     expect(event?.path).toBe('Teil|2.H');
   });
 
   it('handles German filenames with umlauts', () => {
     // R7: these are the names that actually appear on a German shop floor.
-    const event = parseAuditLine(line('10.0.0.1|tnc|programs|open|ok|Größe_Träger.H'));
+    const event = parseAuditLine(line('10.0.0.1|machine|programs|open|ok|Größe_Träger.H'));
     expect(event?.path).toBe('Größe_Träger.H');
   });
 
   it.each([
     ['too few fields', 'a|b|c'],
-    ['an unknown verb', '10.0.0.1|tnc|programs|chdir|ok|x'],
-    ['a bad result', '10.0.0.1|tnc|programs|open|maybe|x'],
-    ['no path argument', '10.0.0.1|tnc|programs|open|ok'],
-    ['an empty path', '10.0.0.1|tnc|programs|open|ok|'],
-    ['a rename with no destination', '10.0.0.1|tnc|programs|rename|ok|old.H'],
+    ['an unknown verb', '10.0.0.1|machine|programs|chdir|ok|x'],
+    ['a bad result', '10.0.0.1|machine|programs|open|maybe|x'],
+    ['no path argument', '10.0.0.1|machine|programs|open|ok'],
+    ['an empty path', '10.0.0.1|machine|programs|open|ok|'],
+    ['a rename with no destination', '10.0.0.1|machine|programs|rename|ok|old.H'],
     ['an empty line', ''],
     ['unrelated syslog noise', 'CRON[123]: session opened'],
   ])('returns null for %s', (_label, payload) => {
@@ -143,17 +143,19 @@ describe('parseAuditLine', () => {
   });
 });
 
-// Verbatim lines from hsh-tncbridge01 (Samba 4.22.10-Debian), captured while a client
+// Verbatim lines from hsh-smbbridge01 (Samba 4.22.10-Debian), captured while a client
 // opened, appended to, renamed and deleted a file on the `test` share. Everything about
 // the modern format is asserted against these rather than against what the docs imply:
 // the `…at` verb names, and paths that arrive absolute where they used to be relative.
 describe('parseAuditLine on Samba 4.22 output', () => {
   const real = (payload: string): string => `<173>smbd_audit[83032]: ${payload}`;
-  const SHARE_ROOT = '/srv/tnc/test';
+  const SHARE_ROOT = '/srv/smb-bridge/test';
   const rooted = { shareRoot: (share: string) => (share === 'test' ? SHARE_ROOT : undefined) };
 
   it('maps openat to open, keeping the mode and stripping the share root', () => {
-    const event = parseAuditLine(real('172.16.37.42|tnc-test|test|openat|ok|r|/srv/tnc/test/10.H'));
+    const event = parseAuditLine(
+      real('172.16.37.42|tnc-test|test|openat|ok|r|/srv/smb-bridge/test/10.H'),
+    );
 
     expect(event).toMatchObject({
       operation: 'open',
@@ -167,15 +169,17 @@ describe('parseAuditLine on Samba 4.22 output', () => {
   });
 
   it('strips the share root from a close', () => {
-    const event = parseAuditLine(real('172.16.37.42|tnc-test|test|close|ok|/srv/tnc/test/10.H'));
+    const event = parseAuditLine(
+      real('172.16.37.42|tnc-test|test|close|ok|/srv/smb-bridge/test/10.H'),
+    );
     expect(event).toMatchObject({ operation: 'close', path: '10.H' });
   });
 
   it('maps renameat to rename with both paths made relative', () => {
     const event = parseAuditLine(
       real(
-        '172.16.37.42|tnc-test|test|renameat|ok|/srv/tnc/test/audit-probe-a.H|' +
-          '/srv/tnc/test/audit-probe b.H',
+        '172.16.37.42|tnc-test|test|renameat|ok|/srv/smb-bridge/test/audit-probe-a.H|' +
+          '/srv/smb-bridge/test/audit-probe b.H',
       ),
     );
 
@@ -188,44 +192,46 @@ describe('parseAuditLine on Samba 4.22 output', () => {
 
   it('maps mkdirat and unlinkat, the latter also covering a removed directory', () => {
     expect(
-      parseAuditLine(real('172.16.37.42|tnc-test|test|mkdirat|ok|/srv/tnc/test/neu')),
+      parseAuditLine(real('172.16.37.42|tnc-test|test|mkdirat|ok|/srv/smb-bridge/test/neu')),
     ).toMatchObject({ operation: 'mkdir', path: 'neu' });
 
     // Samba 4.22 has no rmdir op at all; removing `neu` arrives as unlinkat.
     expect(
-      parseAuditLine(real('172.16.37.42|tnc-test|test|unlinkat|ok|/srv/tnc/test/neu')),
+      parseAuditLine(real('172.16.37.42|tnc-test|test|unlinkat|ok|/srv/smb-bridge/test/neu')),
     ).toMatchObject({ operation: 'unlink', path: 'neu' });
   });
 
   it('prefers a supplied share root over the share name', () => {
     const event = parseAuditLine(
-      real('172.16.37.42|tnc-test|test|openat|ok|r|/srv/tnc/test/unterordner 1/12345.H'),
+      real('172.16.37.42|tnc-test|test|openat|ok|r|/srv/smb-bridge/test/unterordner 1/12345.H'),
       rooted,
     );
     expect(event?.path).toBe('unterordner 1/12345.H');
   });
 
   it('maps the share root itself to an empty path', () => {
-    const event = parseAuditLine(real('172.16.37.42|tnc-test|test|openat|ok|r|/srv/tnc/test'));
+    const event = parseAuditLine(
+      real('172.16.37.42|tnc-test|test|openat|ok|r|/srv/smb-bridge/test'),
+    );
     expect(event?.path).toBe('');
   });
 
   it('keeps a subdirectory that repeats the share name', () => {
     // The name-based fallback must end the root at the *first* occurrence: the share is
-    // /srv/tnc/test, so the second `test` is a real directory inside it.
+    // /srv/smb-bridge/test, so the second `test` is a real directory inside it.
     const event = parseAuditLine(
-      real('172.16.37.42|tnc-test|test|openat|ok|r|/srv/tnc/test/test/9.H'),
+      real('172.16.37.42|tnc-test|test|openat|ok|r|/srv/smb-bridge/test/test/9.H'),
     );
     expect(event?.path).toBe('test/9.H');
   });
 
   it('still parses the pre-4.9 spellings and relative paths', () => {
     // A bridge may meet an older Samba; the old form must keep working unchanged.
-    expect(parseAuditLine(line('10.0.0.1|tnc|programs|open|ok|w|12345.H'))).toMatchObject({
+    expect(parseAuditLine(line('10.0.0.1|machine|programs|open|ok|w|12345.H'))).toMatchObject({
       operation: 'open',
       path: '12345.H',
     });
-    expect(parseAuditLine(line('10.0.0.1|tnc|programs|rmdir|ok|sub'))).toMatchObject({
+    expect(parseAuditLine(line('10.0.0.1|machine|programs|rmdir|ok|sub'))).toMatchObject({
       operation: 'rmdir',
       path: 'sub',
     });
@@ -364,7 +370,7 @@ describe('AuditIngest', () => {
     });
 
     for (let i = 0; i < 5_000; i += 1) {
-      ingest.ingestLine(line(`10.0.0.1|tnc|programs|open|ok|file${i}.H`));
+      ingest.ingestLine(line(`10.0.0.1|machine|programs|open|ok|file${i}.H`));
     }
 
     expect(ingest.stats.queueDepth).toBeLessThanOrEqual(100);
@@ -383,9 +389,9 @@ describe('AuditIngest', () => {
       events.push(event);
     });
 
-    ingest.ingestLine(line('10.0.0.1|tnc|programs|open|ok|first.H'));
-    ingest.ingestLine(line('10.0.0.1|tnc|programs|open|ok|second.H'));
-    ingest.ingestLine(line('10.0.0.1|tnc|programs|open|ok|third.H'));
+    ingest.ingestLine(line('10.0.0.1|machine|programs|open|ok|first.H'));
+    ingest.ingestLine(line('10.0.0.1|machine|programs|open|ok|second.H'));
+    ingest.ingestLine(line('10.0.0.1|machine|programs|open|ok|third.H'));
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(events.map((event) => event.path)).toEqual(['second.H', 'third.H']);
@@ -433,8 +439,8 @@ describe('AuditIngest', () => {
       seen.push(event.path);
     });
 
-    ingest.ingestLine(line('10.0.0.1|tnc|programs|open|ok|boom.H'));
-    ingest.ingestLine(line('10.0.0.1|tnc|programs|open|ok|fine.H'));
+    ingest.ingestLine(line('10.0.0.1|machine|programs|open|ok|boom.H'));
+    ingest.ingestLine(line('10.0.0.1|machine|programs|open|ok|fine.H'));
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(seen).toEqual(['fine.H']);

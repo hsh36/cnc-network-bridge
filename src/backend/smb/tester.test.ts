@@ -439,7 +439,7 @@ describe('testSmbConnection', () => {
   });
 
   it('always deletes the remote probe file, even after a failed read-back', async () => {
-    // Leaving `.tnc-bridge-probe-*` litter on a customer share erodes trust in
+    // Leaving `.smb-bridge-probe-*` litter on a customer share erodes trust in
     // everything else the product claims to do.
     const { run, argvLog } = scriptedRunner({ get: fail('NT_STATUS_ACCESS_DENIED') });
     await testSmbConnection(
@@ -449,7 +449,7 @@ describe('testSmbConnection', () => {
 
     const deletions = argvLog.filter((argv) => argv.join(' ').includes('del '));
     expect(deletions).toHaveLength(1);
-    expect(deletions[0]?.join(' ')).toContain('.tnc-bridge-probe-deadbeef');
+    expect(deletions[0]?.join(' ')).toContain('.smb-bridge-probe-deadbeef');
   });
 
   it('probes inside the sub-path named by the UNC, where permissions may differ', async () => {
@@ -460,7 +460,7 @@ describe('testSmbConnection', () => {
     );
 
     const put = argvLog.find((argv) => argv.join(' ').includes('put '));
-    expect(put?.join(' ')).toContain('programs/2026/.tnc-bridge-probe-deadbeef');
+    expect(put?.join(' ')).toContain('programs/2026/.smb-bridge-probe-deadbeef');
   });
 
   it('skips the write probe when asked, leaving the test non-mutating', async () => {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 export type Theme = 'light' | 'dark';
 
-const STORAGE_KEY = 'tnc.theme';
+const STORAGE_KEY = 'smb-bridge.theme';
 
 function systemPrefersDark(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;

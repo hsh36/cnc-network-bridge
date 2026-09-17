@@ -51,17 +51,17 @@ import {
  * the exact argv is the security property worth testing.
  */
 
-export const CREDENTIALS_DIR = '/run/tnc-bridge';
+export const CREDENTIALS_DIR = '/run/smb-bridge';
 export const SAMBA_CONFIG_PATH = `${ROOTS.sambaConfig}/smb.conf`;
 export const SAMBA_BACKUP_PATH = `${ROOTS.sambaConfig}/smb.conf.tnc-bak`;
-export const DNSMASQ_CONFIG_PATH = `${ROOTS.dnsmasqConfig}/tnc-bridge.conf`;
-export const NFT_RULESET_PATH = `${ROOTS.nftConfig}/tnc-bridge.nft`;
-export const CURRENT_RELEASE_LINK = '/opt/tnc-bridge/current';
-export const NET_REVERT_UNIT = 'tnc-bridge-netrevert';
+export const DNSMASQ_CONFIG_PATH = `${ROOTS.dnsmasqConfig}/smb-bridge.conf`;
+export const NFT_RULESET_PATH = `${ROOTS.nftConfig}/smb-bridge.nft`;
+export const CURRENT_RELEASE_LINK = '/opt/smb-bridge/current';
+export const NET_REVERT_UNIT = 'smb-bridge-netrevert';
 export const CHECKSUM_MANIFEST = 'SHA256SUMS';
 
 /** The checked-out working tree `install.sh` creates, and `self-update` rebuilds. */
-export const INSTALL_DIR = '/opt/tnc-bridge';
+export const INSTALL_DIR = '/opt/smb-bridge';
 
 /** The updater script, shipped in the repository it updates. */
 export const SELF_UPDATE_SCRIPT = `${INSTALL_DIR}/scripts/self-update.sh`;
@@ -73,25 +73,25 @@ export const SELF_UPDATE_SCRIPT = `${INSTALL_DIR}/scripts/self-update.sh`;
  * exists, which is exactly the interlock wanted here — a second update cannot be
  * launched on top of one already running.
  */
-export const SELF_UPDATE_UNIT = 'tnc-bridge-self-update';
+export const SELF_UPDATE_UNIT = 'smb-bridge-self-update';
 
 /** The OS updater, shipped alongside the self-updater. */
 export const OS_UPDATE_SCRIPT = `${INSTALL_DIR}/scripts/os-update.sh`;
 
 /** Fixed for the same reason as {@link SELF_UPDATE_UNIT}: it is the interlock. */
-export const OS_UPDATE_UNIT = 'tnc-bridge-os-update';
+export const OS_UPDATE_UNIT = 'smb-bridge-os-update';
 
 /**
  * The service group.
  *
  * It owns the TLS private key — the service reads it, nobody else can — and it owns the
  * cache a share exports. Every Samba account this helper creates is put in it, because
- * otherwise the account cannot read the very files the share exists for: `/srv/tnc` is
+ * otherwise the account cannot read the very files the share exists for: `/srv/smb-bridge` is
  * 0750 and the cached files are 0660, both owned by the service account. Membership
  * also settles the other direction: a file a machine writes lands in this group, so the
  * sync engine can push it back to the server.
  */
-export const SERVICE_GROUP = 'tncbridge';
+export const SERVICE_GROUP = 'smbbridge';
 
 export class PrivilegedExecutionError extends Error {
   constructor(
@@ -127,7 +127,7 @@ export const nodeFilesystem: FilesystemPort = {
   exists: (path) => existsSync(path),
   readText: (path) => readFileSync(path, 'utf8'),
   writeAtomic(path, content, mode) {
-    const temporary = `${path}.tnc-tmp-${randomBytes(6).toString('hex')}`;
+    const temporary = `${path}.smb-tmp-${randomBytes(6).toString('hex')}`;
     const fd = openSync(temporary, 'wx', mode);
     try {
       writeSync(fd, content);
@@ -556,7 +556,7 @@ function applyNetwork(
   // `stop` alone is not enough, and this is the bug that made the appliance
   // un-reconfigurable: a revert timer that has fired and exited non-zero leaves the
   // unit *loaded* in state `failed`, and systemd-run then refuses the name — "Unit
-  // tnc-bridge-netrevert.service was already loaded or has a fragment file". So every
+  // smb-bridge-netrevert.service was already loaded or has a fragment file". So every
   // apply that armed a rollback failed from that moment on, permanently, and the only
   // hint was an error at the very end of an operation that had already changed the
   // network. `reset-failed` is what actually unloads it.
@@ -708,7 +708,7 @@ function fail2banUnban(
 // ---------------------------------------------------------------------------
 
 /**
- * The private key is written 0640 root:tncbridge — the service must read it to serve
+ * The private key is written 0640 root:smbbridge — the service must read it to serve
  * HTTPS, and nothing else on the box should. The certificate and chain are public by
  * definition and stay 0644.
  */
@@ -849,7 +849,7 @@ function applyUpdate(
 
   deps.fs.mkdirp(dirname(CURRENT_RELEASE_LINK), 0o755);
   log.exec([deps.resolve('ln'), '-sfn', request.releaseDir, CURRENT_RELEASE_LINK]);
-  log.exec([deps.resolve('systemctl'), 'restart', 'tnc-bridge']);
+  log.exec([deps.resolve('systemctl'), 'restart', 'smb-bridge']);
 
   return {
     verb: 'apply-update',
@@ -869,7 +869,7 @@ function applyUpdate(
 /**
  * Hand the update to systemd and return.
  *
- * The updater's last step restarts `tnc-bridge`, and systemd kills a unit's whole
+ * The updater's last step restarts `smb-bridge`, and systemd kills a unit's whole
  * cgroup on restart. A script run as a child of this helper — which is a child of the
  * service — would therefore be killed partway through its own `systemctl restart`,
  * leaving a tree that is neither the old release nor the new one. `systemd-run` puts it
@@ -892,7 +892,7 @@ function selfUpdate(request: SelfUpdateRequest, deps: HandlerDeps, log: CommandL
     `--unit=${SELF_UPDATE_UNIT}`,
     '--collect',
     '--description=TNC Bridge self-update',
-    `--setenv=TNC_HEALTH_TIMEOUT=${String(request.healthTimeoutSeconds)}`,
+    `--setenv=SMB_HEALTH_TIMEOUT=${String(request.healthTimeoutSeconds)}`,
     // The script itself, not an interpreter with the script as an argument. `BINARIES`
     // deliberately contains no shell — a shell in the allowlist is a shell an attacker
     // who reaches this boundary can ask for. The kernel reads the shebang; the path is
@@ -972,7 +972,7 @@ function ensureUnixAccount(username: string, deps: HandlerDeps, log: CommandLog)
       '--shell',
       '/usr/sbin/nologin',
       // The service group as the *primary* one, which is what makes the share usable at
-      // all. Without it the account authenticates and then cannot traverse /srv/tnc,
+      // all. Without it the account authenticates and then cannot traverse /srv/smb-bridge,
       // so a machine gets a share it may open and cannot read — an outcome that looks
       // like a broken bridge rather than a permissions mistake.
       '--gid',

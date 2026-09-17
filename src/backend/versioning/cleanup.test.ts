@@ -52,7 +52,7 @@ beforeEach(async () => {
   shareId = Number(
     db.run(
       `INSERT INTO shares (name, server_unc, mount_point, cache_path, created_at, updated_at)
-       VALUES ('programs', '//fs/cnc$', '/mnt/tnc-server/programs', @cache, @now, @now)`,
+       VALUES ('programs', '//fs/cnc$', '/mnt/smb-server/programs', @cache, @now, @now)`,
       { now: NOW, cache: cacheRoot },
     ).lastInsertRowid,
   );

@@ -100,7 +100,7 @@ export class MountError extends Error {
   constructor(
     message: string,
     readonly kind: MountErrorKind,
-    /** The operation that failed, for logs — e.g. `stat /mnt/tnc-server/programs`. */
+    /** The operation that failed, for logs — e.g. `stat /mnt/smb-server/programs`. */
     readonly operation: string,
     /** The underlying errno string, when there was one. */
     readonly code?: string,
@@ -446,7 +446,7 @@ export function backoffDelayMs(attempt: number, jitter = Math.random()): number 
  * probing the mount point itself, whose attributes the kernel will happily serve from
  * cache while the server is long gone.
  */
-export const PROBE_MARKER = '.tnc-bridge-probe';
+export const PROBE_MARKER = '.smb-bridge-probe';
 
 export interface MountStateChange {
   readonly previous: MountState;
@@ -619,7 +619,7 @@ export class CifsMountManager extends EventEmitter {
 
   /**
    * The mount point must exist before `mount.cifs` runs, and it must be a directory.
-   * Creating it is not privileged — `/mnt/tnc-server` is owned by the service user.
+   * Creating it is not privileged — `/mnt/smb-server` is owned by the service user.
    */
   private async ensureMountPoint(): Promise<void> {
     await withTimeout(

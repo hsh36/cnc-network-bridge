@@ -23,7 +23,7 @@ import { Checkbox, Input, Select } from './ui/Input';
  * Everything here describes the TNC leg, so it is folded away by default — a shop that
  * accepts the defaults never needs to open it.
  */
-export function TncSmbGlobals(): JSX.Element {
+export function MachineSmbGlobals(): JSX.Element {
   const t = useTranslation('config');
   const [form, setForm] = useState<SmbConfig>();
   const [saving, setSaving] = useState(false);
@@ -43,8 +43,8 @@ export function TncSmbGlobals(): JSX.Element {
     return <p className="text-xs text-slate-500 dark:text-slate-400">{t('loading')}</p>;
   }
 
-  const setTnc = (patch: Partial<SmbConfig['tnc']>): void => {
-    setForm({ ...form, tnc: { ...form.tnc, ...patch } });
+  const setMachine = (patch: Partial<SmbConfig['machine']>): void => {
+    setForm({ ...form, machine: { ...form.machine, ...patch } });
     setDirty(true);
     setSaved(false);
   };
@@ -67,17 +67,17 @@ export function TncSmbGlobals(): JSX.Element {
   return (
     <details className="rounded-md border border-border dark:border-border-dark">
       <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-        {t('tnc_smb_title')}
+        {t('machine_smb_title')}
       </summary>
       <div className="flex flex-col gap-4 border-t border-border p-3 dark:border-border-dark">
-        <p className="text-xs text-slate-500 dark:text-slate-400">{t('tnc_smb_hint')}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{t('machine_smb_hint')}</p>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Select
             id="tncMinProtocol"
             label={t('minimum_protocol')}
-            value={form.tnc.minProtocol}
-            onChange={(e) => setTnc({ minProtocol: e.target.value as 'NT1' | 'SMB2' | 'SMB3' })}
+            value={form.machine.minProtocol}
+            onChange={(e) => setMachine({ minProtocol: e.target.value as 'NT1' | 'SMB2' | 'SMB3' })}
           >
             <option value="NT1">NT1 (SMB 1)</option>
             <option value="SMB2">SMB 2</option>
@@ -86,8 +86,8 @@ export function TncSmbGlobals(): JSX.Element {
           <Select
             id="tncMaxProtocol"
             label={t('maximum_protocol')}
-            value={form.tnc.maxProtocol}
-            onChange={(e) => setTnc({ maxProtocol: e.target.value as 'NT1' | 'SMB2' | 'SMB3' })}
+            value={form.machine.maxProtocol}
+            onChange={(e) => setMachine({ maxProtocol: e.target.value as 'NT1' | 'SMB2' | 'SMB3' })}
           >
             <option value="NT1">NT1 (SMB 1)</option>
             <option value="SMB2">SMB 2</option>
@@ -100,23 +100,23 @@ export function TncSmbGlobals(): JSX.Element {
             id="tncWorkgroup"
             label={t('workgroup')}
             hint={t('workgroup_hint')}
-            value={form.tnc.workgroup}
-            onChange={(e) => setTnc({ workgroup: e.target.value })}
+            value={form.machine.workgroup}
+            onChange={(e) => setMachine({ workgroup: e.target.value })}
           />
           <Input
             id="tncDosCharset"
             label={t('dos_charset')}
             hint={t('dos_charset_hint')}
-            value={form.tnc.dosCharset}
-            onChange={(e) => setTnc({ dosCharset: e.target.value })}
+            value={form.machine.dosCharset}
+            onChange={(e) => setMachine({ dosCharset: e.target.value })}
           />
         </div>
 
         <Checkbox
           id="tncNtlmAuth"
           label={t('enable_ntlm')}
-          checked={form.tnc.ntlmAuth}
-          onChange={(e) => setTnc({ ntlmAuth: e.target.checked })}
+          checked={form.machine.ntlmAuth}
+          onChange={(e) => setMachine({ ntlmAuth: e.target.checked })}
         />
 
         <div className="flex items-center gap-3">

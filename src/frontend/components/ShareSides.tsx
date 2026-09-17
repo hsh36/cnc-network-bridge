@@ -33,9 +33,9 @@ export interface ShareSidesValue {
   readonly smbPassword: string;
   readonly smbVersion: ShareSmbVersion;
   readonly smbSeal: boolean;
-  readonly tncGuestOk: boolean;
-  readonly tncUser: string;
-  readonly tncPassword: string;
+  readonly machineGuestOk: boolean;
+  readonly machineUser: string;
+  readonly machinePassword: string;
 }
 
 export interface ShareSidesProps {
@@ -213,7 +213,7 @@ export function ShareSides({
       </Card>
 
       <Card>
-        <CardHeader title={t('tnc_side')} subtitle={t('tnc_side_hint')} />
+        <CardHeader title={t('machine_side')} subtitle={t('machine_side_hint')} />
         <CardBody className="flex flex-col gap-4">
           <Input
             id="shareName"
@@ -227,40 +227,40 @@ export function ShareSides({
           />
           {value.name !== '' && (
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {t('tnc_path_preview', { name: value.name })}
+              {t('machine_path_preview', { name: value.name })}
             </p>
           )}
 
           <Checkbox
             id="shareTncGuestOk"
-            label={t('tnc_guest_ok')}
-            checked={value.tncGuestOk}
-            onChange={(e) => onChange({ tncGuestOk: e.target.checked })}
+            label={t('machine_guest_ok')}
+            checked={value.machineGuestOk}
+            onChange={(e) => onChange({ machineGuestOk: e.target.checked })}
           />
-          <p className="text-xs text-slate-500 dark:text-slate-400">{t('tnc_guest_ok_hint')}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('machine_guest_ok_hint')}</p>
 
           {/* Shown only when guest access is off, because `valid users` alongside
               `guest ok = yes` is a contradiction Samba resolves in favour of the guest —
               the account would be silently decorative. */}
-          {!value.tncGuestOk && (
+          {!value.machineGuestOk && (
             <>
               <Input
                 id="shareTncUser"
-                label={t('tnc_user')}
-                hint={t('tnc_user_hint')}
+                label={t('machine_user')}
+                hint={t('machine_user_hint')}
                 autoComplete="off"
-                value={value.tncUser}
-                onChange={(e) => onChange({ tncUser: e.target.value })}
-                error={errors.tncUser}
+                value={value.machineUser}
+                onChange={(e) => onChange({ machineUser: e.target.value })}
+                error={errors.machineUser}
               />
               <Input
                 id="shareTncPassword"
-                label={t('tnc_password')}
+                label={t('machine_password')}
                 type="password"
                 autoComplete="new-password"
-                hint={passwordStored ? t('tnc_password_stored') : t('tnc_password_hint')}
-                value={value.tncPassword}
-                onChange={(e) => onChange({ tncPassword: e.target.value })}
+                hint={passwordStored ? t('machine_password_stored') : t('machine_password_hint')}
+                value={value.machinePassword}
+                onChange={(e) => onChange({ machinePassword: e.target.value })}
               />
             </>
           )}

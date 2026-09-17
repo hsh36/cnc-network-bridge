@@ -23,11 +23,11 @@ describe('useTheme', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(
       result.current.theme === 'dark',
     );
-    expect(localStorage.getItem('tnc.theme')).toBe(result.current.theme);
+    expect(localStorage.getItem('smb-bridge.theme')).toBe(result.current.theme);
   });
 
   it('reads a previously stored preference on mount', () => {
-    localStorage.setItem('tnc.theme', 'dark');
+    localStorage.setItem('smb-bridge.theme', 'dark');
     const { result } = renderHook(() => useTheme());
     expect(result.current.theme).toBe('dark');
     expect(document.documentElement.classList.contains('dark')).toBe(true);

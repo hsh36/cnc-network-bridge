@@ -1,4 +1,4 @@
-# CNC Network Bridge — Architecture
+# SMB Bridge — Architecture
 
 **Status:** Approved for implementation · **Version:** 1.0 · **Date:** 2026-09-07
 
@@ -6,22 +6,22 @@
 
 ## 1. The core insight
 
-The naive reading of the requirement is "Server ↔ Local ↔ TNC = three copies, three-way sync". That is not
+The naive reading of the requirement is "Server ↔ Local ↔ machine = three copies, three-way sync". That is not
 what we build, and getting this right removes about half the complexity.
 
 **There are only two copies of the data:**
 
 1. **Server share** — the corporate SMB 3.1.1+ share, mounted on the Pi as a POSIX path via `mount.cifs`.
 2. **Local cache** — a directory on the Pi's SSD/SD which *is simultaneously* the directory Samba exports
-   to the TNC machines over SMB 1.0.
+   to the machines over SMB 1.0.
 
-The TNC does not get its own third copy. When a TNC writes a program, it writes **directly into the local
+The machine does not get its own third copy. When a machine writes a program, it writes **directly into the local
 cache** through Samba. Our inotify watcher sees it immediately. So the sync engine is a **two-endpoint
-bidirectional reconciler**, and the "TNC side" is an *event source* (who has what open, who wrote what),
+bidirectional reconciler**, and the "machine side" is an *event source* (who has what open, who wrote what),
 not a sync endpoint.
 
 **Second insight:** we do not implement SMB at all in Node.js.
-- SMB 1.0 server → **Samba `smbd`/`nmbd`**, pinned to the TNC interface, `server max protocol = NT1`.
+- SMB 1.0 server → **Samba `smbd`/`nmbd`**, pinned to the machine interface, `server max protocol = NT1`.
 - SMB 3.1.1 client → **Linux kernel `cifs.ko`** via `mount.cifs`, which gives us encryption, Kerberos/NTLMSSP,
   and — critically — real SMB2 byte-range locks from `fcntl()`.
 
@@ -33,7 +33,7 @@ Node.js orchestrates, decides, and manages. It never speaks wire protocol.
 
 ```mermaid
 flowchart TB
-  subgraph TNCNET["TNC network — eth1 · 192.168.42.0/24"]
+  subgraph MACHINENET["machine network — eth1 · 192.168.42.0/24"]
     T1["iTNC 530<br/>SMB 1.0 / NT1"]
     T2["TNC 640<br/>SMB 1.0-3"]
     T3["TNC 620"]
@@ -44,19 +44,19 @@ flowchart TB
 
     subgraph OSL["OS services (root, systemd-managed)"]
       SMBD["smbd + nmbd<br/>max protocol = NT1<br/>vfs: full_audit<br/>bind: eth1 only"]
-      DNSM["dnsmasq<br/>DHCP for TNC side<br/>(optional)"]
+      DNSM["dnsmasq<br/>DHCP for machine side<br/>(optional)"]
       CIFS["cifs.ko<br/>mount.cifs vers=3.1.1<br/>soft,seal,noserverino"]
-      NFT["nftables<br/>table inet tnc_bridge"]
-      F2B["fail2ban<br/>jail: tnc-bridge"]
+      NFT["nftables<br/>table inet smb_bridge"]
+      F2B["fail2ban<br/>jail: smb-bridge"]
       NM["NetworkManager<br/>nmcli profiles"]
     end
 
-    CACHE[("Local cache<br/>/srv/tnc/&lt;share&gt;<br/>= Samba export root")]
-    MNT[("Server mount<br/>/mnt/tnc-server/&lt;share&gt;")]
-    BLOBS[("Version blob store<br/>/var/lib/tnc-bridge/versions")]
-    DB[("SQLite WAL<br/>/var/lib/tnc-bridge/bridge.db")]
+    CACHE[("Local cache<br/>/srv/smb-bridge/&lt;share&gt;<br/>= Samba export root")]
+    MNT[("Server mount<br/>/mnt/smb-server/&lt;share&gt;")]
+    BLOBS[("Version blob store<br/>/var/lib/smb-bridge/versions")]
+    DB[("SQLite WAL<br/>/var/lib/smb-bridge/bridge.db")]
 
-    subgraph APP["tnc-bridge.service — Node 22 LTS, user tncbridge"]
+    subgraph APP["smb-bridge.service — Node 22 LTS, user smbbridge"]
       direction TB
       ORCH["Orchestrator / DI container<br/>lifecycle · health · shutdown"]
 
@@ -85,7 +85,7 @@ flowchart TB
       SEC["Auth · Sessions · CSRF<br/>API tokens · audit log"]
     end
 
-    HELP["tnc-bridge-helper<br/>setuid-via-sudoers allowlist<br/>mount · nmcli · nft · systemctl"]
+    HELP["smb-bridge-helper<br/>setuid-via-sudoers allowlist<br/>mount · nmcli · nft · systemctl"]
   end
 
   subgraph LANNET["Corporate LAN — eth0"]
@@ -130,7 +130,7 @@ flowchart TB
 |---|---|---|---|
 | **OS services** | root (systemd) | Wire protocol, packet filtering, addressing | Business logic |
 | **Privileged helper** | root (sudo allowlist) | Exactly 11 whitelisted, argument-validated operations | Accept free-form shell input |
-| **Node application** | `tncbridge` (unprivileged, `CAP_NET_BIND_SERVICE`) | All decisions, state, API, UI | Speak SMB; run as root |
+| **Node application** | `smbbridge` (unprivileged, `CAP_NET_BIND_SERVICE`) | All decisions, state, API, UI | Speak SMB; run as root |
 | **Frontend SPA** | Browser | Presentation only | Hold secrets; make decisions |
 
 ---
@@ -158,7 +158,7 @@ sequenceDiagram
   DIFF->>DIFF: verdict = PULL (no conflict)
   DIFF->>XFER: enqueue(PULL, rel_path, priority)
   XFER->>XFER: check lock table — path locked by TNC?
-  XFER->>CACHE: stream → .tnc-tmp-<rand>, throttled
+  XFER->>CACHE: stream → .smb-tmp-<rand>, throttled
   XFER->>XFER: verify size + xxhash64
   XFER->>CACHE: rename() — atomic, TNC never sees partial
   XFER->>IDX: base := remote := local; state = synced
@@ -188,7 +188,7 @@ sequenceDiagram
   participant SRV as Fileserver
 
   TNC->>SMBD: SMB_COM_OPEN 12345.H (write)
-  SMBD->>AUD: openat|ok|w|/srv/tnc/<share>/12345.H  (syslog LOCAL5)
+  SMBD->>AUD: openat|ok|w|/srv/smb-bridge/<share>/12345.H  (syslog LOCAL5)
   AUD->>LMGR: acquireLock(path, origin=tnc, ip, smb_pid)
   LMGR->>PROJ: project lock to server
   PROJ->>SRV: create sidecar .~lock.12345.H# (+ optional fcntl byte-range)
@@ -215,12 +215,12 @@ flowchart LR
   A["local_hash != base_hash<br/>AND remote_hash != base_hash"] --> B{"local_hash == remote_hash?"}
   B -->|yes| C["Converged independently<br/>base := current · no transfer"]
   B -->|no| D{conflict_mode}
-  D -->|tnc_wins| E["PUSH local → server"]
+  D -->|machine_wins| E["PUSH local → server"]
   D -->|server_wins| F["PULL remote → cache"]
   D -->|last_write_wins| G{"mtime + skew guard"}
   G -->|local newer| E
   G -->|remote newer| F
-  G -->|"within 2 s"| H["tie-break: tnc_wins"]
+  G -->|"within 2 s"| H["tie-break: machine_wins"]
   E & F & H --> I["Version-capture the LOSING side<br/>always, before overwrite"]
   I --> J["Row in conflicts table<br/>+ conflict log line"]
   J --> K["No UI popup — config-driven,<br/>visible in Conflicts page"]
@@ -266,8 +266,8 @@ stateDiagram-v2
 
 ```
 vers=3.1.1,seal,soft,retrans=2,timeo=30,actimeo=1,noserverino,nobrl=0,
-iocharset=utf8,uid=tncbridge,gid=tncbridge,file_mode=0660,dir_mode=0770,
-credentials=/etc/tnc-bridge/creds/<share>.cred
+iocharset=utf8,uid=smbbridge,gid=smbbridge,file_mode=0660,dir_mode=0770,
+credentials=/etc/smb-bridge/creds/<share>.cred
 ```
 
 - `soft` — **the single most important option.** A `hard` mount that loses the server puts our process into
@@ -278,7 +278,7 @@ credentials=/etc/tnc-bridge/creds/<share>.cred
 - `actimeo=1` — short attribute cache so the scanner sees fresh mtimes.
 - `seal` — forces SMB3 encryption on the wire (this is the whole security point of the product).
 
-**`smb.conf` essentials for the TNC side:**
+**`smb.conf` essentials for the machine side:**
 
 ```ini
 [global]
@@ -287,7 +287,7 @@ credentials=/etc/tnc-bridge/creds/<share>.cred
   ntlm auth = yes                     # required — iTNC 530 cannot do NTLMv2
   lanman auth = no                    # keep off unless a specific control demands it
   server signing = disabled           # NT1 clients cannot sign
-  interfaces = eth1                   # TNC side only
+  interfaces = eth1                   # machine side only
   bind interfaces only = yes          # smbd must NEVER listen on the LAN side
   unix charset = UTF-8
   dos charset = CP850                 # HEIDENHAIN codepage — mismatch = mangled filenames
@@ -353,8 +353,8 @@ computed only when that cheap check indicates change. Measured target: **10 000 
 | Tests | **Jest + ts-jest**, **Supertest**, **Vitest + Testing Library**, **Testcontainers** (dockerised Samba) | 80 % coverage target. |
 | Process mgmt | **systemd** (`Restart=always`, `WatchdogSec=60`, hardening directives) | No PM2 — systemd is already there and integrates with journald. |
 | Network config | **`nmcli`** | Bookworm-based RPi OS Lite uses NetworkManager, not `dhcpcd`. Writing `dhcpcd.conf` on a current image does nothing. |
-| DHCP (TNC side) | **dnsmasq** | Interface-bound; also provides the DNS/NetBIOS help old controls want. |
-| Firewall | **nftables** (`table inet tnc_bridge`) | Debian's default since Buster. Default policy `accept` per spec; our table is additive and independently flushable. |
+| DHCP (machine side) | **dnsmasq** | Interface-bound; also provides the DNS/NetBIOS help old controls want. |
+| Firewall | **nftables** (`table inet smb_bridge`) | Debian's default since Buster. Default policy `accept` per spec; our table is additive and independently flushable. |
 
 ---
 
@@ -369,12 +369,12 @@ flowchart LR
     P["PRTG"]
   end
   subgraph SU["Semi-trusted (isolated segment)"]
-    T["TNC machines<br/>no credentials, no auth"]
+    T["machines<br/>no credentials, no auth"]
   end
   subgraph TR["Trusted"]
     S["Fileserver + AD"]
   end
-  subgraph APP["tnc-bridge (unprivileged)"]
+  subgraph APP["smb-bridge (unprivileged)"]
     W["HTTPS API"]
     E["Sync engine"]
   end
@@ -395,8 +395,8 @@ flowchart LR
 - **Idle timeout** (default 30 min, configurable 5 min–24 h) and **absolute timeout** (default 12 h).
 - **CSRF**: double-submit token, required on every non-GET; SameSite=Strict is defence in depth, not the control.
 - **Rate limiting**: 5 login attempts / 15 min / IP, then 429. Every failure writes
-  `authentication failure for user admin from <IP>` to `/var/log/tnc-bridge/auth.log`.
-- **Fail2Ban** ships as a first-class deliverable: `filter.d/tnc-bridge.conf` + `jail.d/tnc-bridge.local`
+  `authentication failure for user admin from <IP>` to `/var/log/smb-bridge/auth.log`.
+- **Fail2Ban** ships as a first-class deliverable: `filter.d/smb-bridge.conf` + `jail.d/smb-bridge.local`
   (`maxretry=5`, `findtime=600`, `bantime=3600`). Unban is exposed in the UI.
 - **API tokens** for PRTG/Prometheus: `tnb_<32 bytes base62>`, stored as SHA-256, scoped read-only,
   sent as `X-API-Key`. Shown exactly once at creation.
@@ -412,9 +412,9 @@ HSTS, CSP (`default-src 'self'`, no inline script), `X-Content-Type-Options`, `X
 
 ### 5.4 Privilege separation
 
-The Node service runs as **`tncbridge`**, not root. It binds :443 via
+The Node service runs as **`smbbridge`**, not root. It binds :443 via
 `AmbientCapabilities=CAP_NET_BIND_SERVICE`. Everything requiring root goes through
-`/usr/local/lib/tnc-bridge/helper` invoked under a sudoers rule that permits **only that one binary with no
+`/usr/local/lib/smb-bridge/helper` invoked under a sudoers rule that permits **only that one binary with no
 arguments passed through the shell**. The helper accepts a **fixed set of 11 verbs**:
 
 `mount-share · unmount-share · reload-samba · write-samba-config · write-dnsmasq-config ·
@@ -427,8 +427,8 @@ This is the primary defence against a web-tier RCE becoming root.
 
 ### 5.5 Secrets
 
-AD service-account passwords are encrypted **AES-256-GCM** with a key in `/etc/tnc-bridge/secret.key`
-(`0600 root:tncbridge`, generated at install from `getrandom`). They are never returned by the API — the
+AD service-account passwords are encrypted **AES-256-GCM** with a key in `/etc/smb-bridge/secret.key`
+(`0600 root:smbbridge`, generated at install from `getrandom`). They are never returned by the API — the
 config endpoint emits `"********"` and accepts a sentinel meaning "unchanged". `mount.cifs` requires
 plaintext at mount time, so a credentials file is written `0600`, consumed, and the fact that it must exist
 on disk is documented honestly rather than hidden. Recommend an AD account with **read/write on exactly one
@@ -446,7 +446,7 @@ before any `fs` call. Directory traversal is treated as a hard error, logged to 
 ## 6. Project structure
 
 ```
-cnc-network-bridge/
+smb-bridge/
 ├── src/
 │   ├── shared/                      # imported by BOTH backend and frontend
 │   │   ├── schemas/                 # Zod: config, share, lock, api envelopes
@@ -531,8 +531,8 @@ cnc-network-bridge/
 │   ├── uninstall.sh
 │   └── backup-restore.sh
 ├── packaging/
-│   ├── systemd/tnc-bridge.service
-│   ├── sudoers/tnc-bridge
+│   ├── systemd/smb-bridge.service
+│   ├── sudoers/smb-bridge
 │   ├── fail2ban/{filter.d,jail.d}/
 │   └── templates/{smb.conf.hbs,dnsmasq.conf.hbs,nftables.conf.hbs}
 ├── tests/{unit,integration,api,fixtures}/
@@ -543,9 +543,9 @@ Runtime paths on the Pi:
 
 | Path | Contents |
 |---|---|
-| `/opt/tnc-bridge/releases/<ver>/` · `current` symlink | Application code (atomic update swap) |
-| `/etc/tnc-bridge/` | `secret.key`, `creds/*.cred`, `certs/` |
-| `/var/lib/tnc-bridge/` | `bridge.db`, `versions/` blob store |
-| `/var/log/tnc-bridge/` | `app.log`, `sync.log`, `auth.log` |
-| `/srv/tnc/<share>/` | Local cache = Samba export root |
-| `/mnt/tnc-server/<share>/` | CIFS mount of the corporate share |
+| `/opt/smb-bridge/releases/<ver>/` · `current` symlink | Application code (atomic update swap) |
+| `/etc/smb-bridge/` | `secret.key`, `creds/*.cred`, `certs/` |
+| `/var/lib/smb-bridge/` | `bridge.db`, `versions/` blob store |
+| `/var/log/smb-bridge/` | `app.log`, `sync.log`, `auth.log` |
+| `/srv/smb-bridge/<share>/` | Local cache = Samba export root |
+| `/mnt/smb-server/<share>/` | CIFS mount of the corporate share |

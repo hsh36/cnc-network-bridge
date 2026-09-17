@@ -51,7 +51,7 @@ export interface CaptureOptions {
  * a version should be captured. The origin field in the database will be derived from
  * these.
  */
-export type CaptureReason = 'server' | 'tnc' | 'conflict_loser' | 'initial';
+export type CaptureReason = 'server' | 'machine' | 'conflict_loser' | 'initial';
 
 export class VersioningEngine {
   private readonly store: VersionStore;
@@ -107,7 +107,7 @@ export class VersioningEngine {
           shareId,
           relPath,
           sourcePath,
-          origin: 'tnc',
+          origin: 'machine',
           reason: 'pre-PUSH: local change about to be pushed to server',
         });
       },

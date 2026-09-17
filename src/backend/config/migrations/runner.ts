@@ -24,7 +24,7 @@ const FILENAME_PATTERN = /^(\d{3,})_([a-z0-9_-]+)\.sql$/;
  * Needed only for the rare rebuild that must toggle `PRAGMA foreign_keys`, which
  * SQLite ignores inside a transaction.
  */
-const NO_TRANSACTION_MARKER = '-- tnc-bridge: no-transaction';
+const NO_TRANSACTION_MARKER = '-- smb-bridge: no-transaction';
 
 export interface Migration {
   readonly version: number;

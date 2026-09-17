@@ -32,8 +32,8 @@ function addShare(name: string, status = 'idle'): number {
       {
         name,
         unc: `//fs/${name}`,
-        mount: `/mnt/tnc-server/${name}`,
-        cache: `/srv/tnc/${name}`,
+        mount: `/mnt/smb-server/${name}`,
+        cache: `/srv/smb-bridge/${name}`,
         status,
       },
     ).lastInsertRowid,
@@ -271,14 +271,14 @@ describe('the flag Samba renders', () => {
       column; this is what makes a machine's save fail, and it is the only step that is
       visible to the person standing at the control.
     */
-    const share = { name: 'programs', path: '/srv/tnc/programs', guestOk: true };
+    const share = { name: 'programs', path: '/srv/smb-bridge/programs', guestOk: true };
 
     const writable = renderSmbConf({
-      tncInterface: 'eth1',
+      machineInterface: 'eth1',
       shares: [{ ...share, readOnly: false }],
     });
     const refused = renderSmbConf({
-      tncInterface: 'eth1',
+      machineInterface: 'eth1',
       shares: [{ ...share, readOnly: true }],
     });
 

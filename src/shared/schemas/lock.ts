@@ -24,7 +24,7 @@ export const lockSchema = z.object({
   origin: lockOriginSchema,
   /** Human-facing owner, e.g. "TNC-640-Halle2". */
   ownerLabel: z.string().nullable(),
-  tncIp: ipAddressSchema.nullable(),
+  machineIp: ipAddressSchema.nullable(),
   smbPid: z.number().int().nonnegative().nullable(),
   smbSessionId: z.string().nullable(),
   serverLockKind: serverLockKindSchema,

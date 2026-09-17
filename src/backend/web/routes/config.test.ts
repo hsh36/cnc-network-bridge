@@ -148,13 +148,13 @@ describe('PUT /config/:section', () => {
     // still a field the API accepts.
     const { agent, csrf } = await loginAgent();
     const current = (await agent.get('/api/v1/config/network').expect(200)).body as {
-      data: { tnc: Record<string, unknown> };
+      data: { machine: Record<string, unknown> };
     };
 
     const res = await agent
       .put('/api/v1/config/network')
       .set('x-csrf-token', csrf)
-      .send({ ...current.data, tnc: { ...current.data.tnc, dns: ['8.8.8.8'] } });
+      .send({ ...current.data, machine: { ...current.data.machine, dns: ['8.8.8.8'] } });
 
     expect(res.status).toBe(400);
   });

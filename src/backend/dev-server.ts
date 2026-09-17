@@ -20,7 +20,7 @@ import { startServer } from './server';
  */
 
 const DEV_ROOT = join(process.cwd(), '.dev-data');
-const DEV_HTTPS_PORT = Number(process.env.TNC_DEV_PORT ?? 8443);
+const DEV_HTTPS_PORT = Number(process.env.SMB_DEV_PORT ?? 8443);
 
 async function main(): Promise<void> {
   const boot = bootstrapLogger(false);
@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   const running = await startServer({
     port: DEV_HTTPS_PORT,
     paths: {
-      dbPath: join(DEV_ROOT, 'tnc-bridge.db'),
+      dbPath: join(DEV_ROOT, 'smb-bridge.db'),
       logDir: join(DEV_ROOT, 'log'),
       secretKeyPath,
       certDir: join(DEV_ROOT, 'tls'),

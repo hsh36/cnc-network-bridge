@@ -11,7 +11,7 @@ function insertShare(): number {
   const now = clockSeconds;
   const result = db.run(
     `INSERT INTO shares (name, server_unc, mount_point, cache_path, created_at, updated_at)
-     VALUES ('programs', '//fileserver/cnc$/programs', '/mnt/tnc-server/programs', '/srv/tnc/programs', @now, @now)`,
+     VALUES ('programs', '//fileserver/cnc$/programs', '/mnt/smb-server/programs', '/srv/smb-bridge/programs', @now, @now)`,
     { now },
   );
   return Number(result.lastInsertRowid);
@@ -34,8 +34,8 @@ describe('decideWinner', () => {
   const local = fp('a'.repeat(64), 10, 100);
   const remote = fp('b'.repeat(64), 20, 200);
 
-  it('tnc_wins always picks local', () => {
-    expect(decideWinner('tnc_wins', local, remote)).toBe('local');
+  it('machine_wins always picks local', () => {
+    expect(decideWinner('machine_wins', local, remote)).toBe('local');
   });
 
   it('server_wins always picks remote', () => {
@@ -52,7 +52,7 @@ describe('decideWinner', () => {
   });
 
   it('picks whichever side exists when the other is absent, regardless of mode', () => {
-    expect(decideWinner('tnc_wins', null, remote)).toBe('remote');
+    expect(decideWinner('machine_wins', null, remote)).toBe('remote');
     expect(decideWinner('server_wins', local, null)).toBe('local');
   });
 });
@@ -115,7 +115,7 @@ describe('resolve', () => {
     const conflict = resolver.resolve({
       shareId,
       relPath: 'PART1.H',
-      mode: 'tnc_wins',
+      mode: 'machine_wins',
       local: fp('a'.repeat(64), 10, 300),
       remote: null,
     });
@@ -142,7 +142,7 @@ describe('acknowledge', () => {
     const conflict = resolver.resolve({
       shareId,
       relPath: 'PART1.H',
-      mode: 'tnc_wins',
+      mode: 'machine_wins',
       local: fp('a'.repeat(64), 1, 1),
       remote: fp('b'.repeat(64), 1, 1),
     });

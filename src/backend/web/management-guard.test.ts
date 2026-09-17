@@ -57,7 +57,7 @@ function buildContext(): AppContext {
   return {
     db,
     config,
-    // Without an explicit writer this reaches for /var/log/tnc-bridge, which the
+    // Without an explicit writer this reaches for /var/log/smb-bridge, which the
     // constructor creates eagerly — fine as root, EACCES on a CI runner.
     auth: new AuthManager({ db, config, authLog: new AuthLogWriter(`${tmpDir()}/auth.log`) }),
     locks: new LockManager({ db, config }),
@@ -104,7 +104,7 @@ beforeEach(() => {
   // The defaults: LAN on eth0, TNC on eth1.
   ctx.config.set('network', {
     lan: { interface: 'eth0', method: 'dhcp' },
-    tnc: { interface: 'eth1', method: 'static', address: '192.168.42.1/24' },
+    machine: { interface: 'eth1', method: 'static', address: '192.168.42.1/24' },
   });
 });
 
@@ -143,7 +143,7 @@ describe('managementGuard', () => {
   it('follows the TNC interface when the configuration moves it', async () => {
     ctx.config.set('network', {
       lan: { interface: 'eth0', method: 'dhcp' },
-      tnc: { interface: 'eth2', method: 'static', address: '192.168.42.1/24' },
+      machine: { interface: 'eth2', method: 'static', address: '192.168.42.1/24' },
     });
     const read = fakeInterfaces({ eth0: ['10.0.0.5'], eth2: ['172.20.0.1'] });
 

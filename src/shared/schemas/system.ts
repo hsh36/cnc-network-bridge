@@ -133,7 +133,7 @@ export type SystemInfo = z.infer<typeof systemInfoSchema>;
 
 export const tncModelSchema = z.enum(['iTNC530', 'TNC620', 'TNC640', 'other']);
 
-export const tncClientSchema = z.object({
+export const machineClientSchema = z.object({
   id: entityIdSchema,
   name: z.string().nullable(),
   mac: macAddressSchema.nullable(),
@@ -146,9 +146,9 @@ export const tncClientSchema = z.object({
   notes: z.string().nullable(),
 });
 
-export type TncClient = z.infer<typeof tncClientSchema>;
+export type MachineClient = z.infer<typeof machineClientSchema>;
 
-export const updateTncClientRequestSchema = z
+export const updateMachineClientRequestSchema = z
   .object({
     name: z.string().max(64).nullable(),
     model: tncModelSchema.nullable(),

@@ -1,5 +1,5 @@
 /**
- * Internationalization (i18n) system for CNC Network Bridge UI.
+ * Internationalization (i18n) system for SMB Bridge UI.
  *
  * Provides:
  * - Translation key-value lookups
@@ -61,7 +61,7 @@ export function parseTranslation(
 export class I18nManager {
   private currentLanguage: LanguageCode;
   private translations: Translations;
-  private storageKey = 'tnc-bridge:language';
+  private storageKey = 'smb-bridge:language';
 
   constructor(translations: Translations, initialLanguage?: LanguageCode) {
     this.translations = translations;

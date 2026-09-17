@@ -449,40 +449,46 @@ export function createBridgeMetrics(registry = new MetricsRegistry()): BridgeMet
   return {
     registry,
     syncFiles: registry.counter(
-      'tnc_sync_files_total',
+      'smb_bridge_sync_files_total',
       'Files synchronised, by share and direction.',
     ),
     syncBytes: registry.counter(
-      'tnc_sync_bytes_total',
+      'smb_bridge_sync_bytes_total',
       'Bytes transferred, by share and direction.',
     ),
     syncDuration: registry.histogram(
-      'tnc_sync_duration_seconds',
+      'smb_bridge_sync_duration_seconds',
       'Time to synchronise one file, in seconds.',
     ),
-    errors: registry.counter('tnc_error_total', 'Errors, by type.'),
-    locks: registry.gauge('tnc_lock_count', 'Locks currently held, by origin.'),
-    queueDepth: registry.gauge('tnc_queue_depth', 'Transfers waiting in the queue.'),
-    diskUsage: registry.gauge('tnc_disk_usage_bytes', 'Bytes used on the cache filesystem.'),
-    diskFree: registry.gauge('tnc_disk_free_bytes', 'Bytes free on the cache filesystem.'),
+    errors: registry.counter('smb_bridge_error_total', 'Errors, by type.'),
+    locks: registry.gauge('smb_bridge_lock_count', 'Locks currently held, by origin.'),
+    queueDepth: registry.gauge('smb_bridge_queue_depth', 'Transfers waiting in the queue.'),
+    diskUsage: registry.gauge('smb_bridge_disk_usage_bytes', 'Bytes used on the cache filesystem.'),
+    diskFree: registry.gauge('smb_bridge_disk_free_bytes', 'Bytes free on the cache filesystem.'),
     throughput: registry.gauge(
       'tnc_network_throughput_bytes_per_second',
       'Current transfer throughput, by direction.',
     ),
-    versionsStored: registry.gauge('tnc_versions_stored', 'Version rows currently retained.'),
+    versionsStored: registry.gauge(
+      'smb_bridge_versions_stored',
+      'Version rows currently retained.',
+    ),
     versionBytes: registry.gauge(
       'tnc_version_store_bytes',
       'Bytes held by the version blob store.',
     ),
-    sharesOnline: registry.gauge('tnc_shares_online', 'Shares whose server link is reachable.'),
+    sharesOnline: registry.gauge(
+      'smb_bridge_shares_online',
+      'Shares whose server link is reachable.',
+    ),
     sharesOffline: registry.gauge(
-      'tnc_shares_offline',
+      'smb_bridge_shares_offline',
       'Enabled shares whose server link is down or erroring.',
     ),
     sharesReadOnly: registry.gauge(
-      'tnc_shares_read_only',
+      'smb_bridge_shares_read_only',
       'Enabled shares currently refusing writes from the machines.',
     ),
-    uptime: registry.gauge('tnc_uptime_seconds', 'Seconds since the service started.'),
+    uptime: registry.gauge('smb_bridge_uptime_seconds', 'Seconds since the service started.'),
   };
 }

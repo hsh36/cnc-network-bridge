@@ -210,7 +210,7 @@ export function CertificateManager(): JSX.Element {
           <a
             className="w-fit rounded-md border border-border px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 dark:border-border-dark dark:text-slate-100 dark:hover:bg-slate-800"
             href={`${API_BASE_PATH}/certificates/download`}
-            download="tnc-bridge-cert.pem"
+            download="smb-bridge-cert.pem"
           >
             {t('download_button')}
           </a>

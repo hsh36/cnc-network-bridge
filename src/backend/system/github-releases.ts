@@ -149,7 +149,7 @@ export async function fetchLatestRelease(
       {
         headers: {
           accept: 'application/vnd.github+json',
-          'user-agent': 'cnc-network-bridge',
+          'user-agent': 'smb-bridge',
         },
         signal: controller.signal,
       },

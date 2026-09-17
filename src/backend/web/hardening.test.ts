@@ -151,7 +151,7 @@ describe('config API rate limiting', () => {
     const res = await agent
       .put('/api/v1/config/sync')
       .set('x-csrf-token', csrf)
-      .send({ conflictMode: 'tnc_wins' });
+      .send({ conflictMode: 'machine_wins' });
 
     expect(res.status).toBe(429);
     expect(res.body.error.code).toBe('RATE_LIMITED');

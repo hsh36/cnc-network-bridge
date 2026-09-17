@@ -14,7 +14,7 @@ export interface ConflictDetailProps {
 
 const MODE_LABEL: Record<string, string> = {
   last_write_wins: 'Last Write Wins',
-  tnc_wins: 'TNC Wins',
+  machine_wins: 'TNC Wins',
   server_wins: 'Server Wins',
 };
 

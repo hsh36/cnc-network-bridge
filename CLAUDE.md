@@ -1,11 +1,11 @@
-# CNC Network Bridge - Development Guide
+# SMB Bridge - Development Guide
 
 **⚠️ NOTE: This file is local-only (see .gitignore) and not pushed to GitHub. Use for development reference only.**
 
 ## Project Overview
 
-**Project Name**: CNC Network Bridge  
-**GitHub**: [@hsh36/cnc-network-bridge](https://github.com/hsh36/cnc-network-bridge)  
+**Project Name**: SMB Bridge  
+**GitHub**: [@hsh36/smb-bridge](https://github.com/hsh36/smb-bridge)  
 **Start Date**: September 2026  
 **License**: GNU General Public License v3.0  
 **Maintainer**: hsh36
@@ -77,7 +77,7 @@
 
 ### Component Structure
 ```
-cnc-network-bridge/
+smb-bridge/
 ├── src/
 │   ├── backend/              # Node.js/Express server
 │   │   ├── sync/            # File sync engine
@@ -135,15 +135,15 @@ cnc-network-bridge/
 
 ### For Development
 ```bash
-git clone https://github.com/hsh36/cnc-network-bridge.git
-cd cnc-network-bridge
+git clone https://github.com/hsh36/smb-bridge.git
+cd smb-bridge
 npm install
 npm run dev
 ```
 
 ### For Production (Raspberry Pi)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hsh36/cnc-network-bridge/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/hsh36/smb-bridge/main/install.sh | bash
 ```
 
 ### Configuration
@@ -187,7 +187,7 @@ After installation, access https://localhost:443 and run the setup wizard:
 ### Logs
 ```bash
 # Application logs
-sudo journalctl -u tnc-bridge -f
+sudo journalctl -u smb-bridge -f
 
 # Web UI logs
 tail -f logs/web.log

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# CNC Network Bridge - Installation Script for Raspberry Pi OS Lite
+# SMB Bridge - Installation Script for Raspberry Pi OS Lite
 #
-# Usage: curl -fsSL https://raw.githubusercontent.com/hsh36/cnc-network-bridge/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/hsh36/smb-bridge/main/install.sh | bash
 #
 # This script will:
 # - Check system requirements and install the packages the bridge shells out to
@@ -25,32 +25,32 @@ NC='\033[0m' # No Color
 set -u
 
 # Configuration
-REPO_URL="https://github.com/hsh36/cnc-network-bridge.git"
+REPO_URL="https://github.com/hsh36/smb-bridge.git"
 # /opt, not $HOME: the unit below sets ProtectHome=yes, under which a WorkingDirectory
 # inside /home does not exist as far as the service is concerned.
-INSTALL_DIR="/opt/tnc-bridge"
-SERVICE_NAME="tnc-bridge"
-# Must match `SERVICE_GROUP` in src/backend/privileged/handlers.ts and the `%tncbridge`
-# rule in install/sudoers.d/tnc-bridge — sudo silently refuses a group that never matches.
-SERVICE_USER="tncbridge"
-SERVICE_GROUP="tncbridge"
+INSTALL_DIR="/opt/smb-bridge"
+SERVICE_NAME="smb-bridge"
+# Must match `SERVICE_GROUP` in src/backend/privileged/handlers.ts and the `%smbbridge`
+# rule in install/sudoers.d/smb-bridge — sudo silently refuses a group that never matches.
+SERVICE_USER="smbbridge"
+SERVICE_GROUP="smbbridge"
 
 # The package.json `engines` floor. Node 18 cannot run this build.
 NODE_MAJOR_MIN=22
 NODE_VERSION="22.23.2"
 
-CONFIG_DIR="/etc/tnc-bridge"
-STATE_DIR="/var/lib/tnc-bridge"
-LOG_DIR="/var/log/tnc-bridge"
-# Parent of every share's cache_path (/srv/tnc/<name>, see 001_init.sql).
-CACHE_DIR="/srv/tnc"
+CONFIG_DIR="/etc/smb-bridge"
+STATE_DIR="/var/lib/smb-bridge"
+LOG_DIR="/var/log/smb-bridge"
+# Parent of every share's cache_path (/srv/smb-bridge/<name>, see 001_init.sql).
+CACHE_DIR="/srv/smb-bridge"
 # Parent of every share's mount_point. The service mounts the server export below here,
 # so it has to exist and be owned by the service account before the first reconcile.
-MOUNT_DIR="/mnt/tnc-server"
+MOUNT_DIR="/mnt/smb-server"
 SECRET_KEY="${CONFIG_DIR}/secret.key"
-HELPER_DIR="/usr/local/lib/tnc-bridge"
+HELPER_DIR="/usr/local/lib/smb-bridge"
 HELPER_PATH="${HELPER_DIR}/helper"
-SUDOERS_PATH="/etc/sudoers.d/tnc-bridge"
+SUDOERS_PATH="/etc/sudoers.d/smb-bridge"
 
 # Helper functions
 log_info() {
@@ -328,7 +328,7 @@ create_runtime_dirs() {
 #
 # The service account runs the Node process and owns nothing privileged. This helper, and
 # only this helper, is reachable through sudo, takes no arguments, and reads its request
-# as JSON on stdin (see install/sudoers.d/tnc-bridge for why).
+# as JSON on stdin (see install/sudoers.d/smb-bridge for why).
 install_privileged_helper() {
   log_info "Installing the privileged helper..."
 
@@ -351,7 +351,7 @@ HELPER
     die "Failed to install $HELPER_PATH"
   rm -f "$wrapper"
 
-  local sudoers_src="$INSTALL_DIR/install/sudoers.d/tnc-bridge"
+  local sudoers_src="$INSTALL_DIR/install/sudoers.d/smb-bridge"
   [ -f "$sudoers_src" ] || die "Missing $sudoers_src"
 
   # A malformed file in /etc/sudoers.d breaks sudo for every user on the machine, so it
@@ -390,8 +390,8 @@ fix_permissions() {
 setup_audit_forwarding() {
   log_info "Forwarding Samba audit events to the bridge..."
 
-  sudo tee /etc/rsyslog.d/30-tnc-bridge-audit.conf > /dev/null <<'RSYSLOG'
-# Installed by CNC Network Bridge. Forwards Samba full_audit events to the
+  sudo tee /etc/rsyslog.d/30-smb-bridge-audit.conf > /dev/null <<'RSYSLOG'
+# Installed by SMB Bridge. Forwards Samba full_audit events to the
 # bridge and discards them afterwards, so they never reach the disk (R16).
 local5.*  @127.0.0.1:5514
 local5.*  stop
@@ -411,8 +411,8 @@ setup_systemd() {
 
   sudo tee "/etc/systemd/system/${SERVICE_NAME}.service" > /dev/null <<UNIT
 [Unit]
-Description=CNC Network Bridge - SMB Protocol Bridge
-Documentation=https://github.com/hsh36/cnc-network-bridge
+Description=SMB Bridge - SMB Protocol Bridge
+Documentation=https://github.com/hsh36/smb-bridge
 After=network-online.target
 Wants=network-online.target
 
@@ -432,7 +432,7 @@ TimeoutStartSec=120
 WatchdogSec=60
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=tnc-bridge
+SyslogIdentifier=smb-bridge
 
 # Binding 443 as a non-root user needs this one capability and nothing else.
 AmbientCapabilities=CAP_NET_BIND_SERVICE
@@ -531,7 +531,7 @@ show_instructions() {
 
   echo ""
   echo -e "${GREEN}============================================================${NC}"
-  echo -e "${GREEN}  CNC Network Bridge Installation Complete!${NC}"
+  echo -e "${GREEN}  SMB Bridge Installation Complete!${NC}"
   echo -e "${GREEN}============================================================${NC}"
   echo ""
   echo -e "Installation directory: ${BLUE}$INSTALL_DIR${NC}"
@@ -559,7 +559,7 @@ show_instructions() {
 main() {
   echo ""
   echo -e "${BLUE}============================================================${NC}"
-  echo -e "${BLUE}  CNC Network Bridge Installation${NC}"
+  echo -e "${BLUE}  SMB Bridge Installation${NC}"
   echo -e "${BLUE}============================================================${NC}"
   echo ""
 

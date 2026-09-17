@@ -6,7 +6,7 @@ import { dirname } from 'node:path';
  *
  * This file exists for one consumer — a regex — so its format is frozen and defined
  * here next to the regex that must match it. {@link FAIL2BAN_FAILREGEX} is the exact
- * string shipped in `filter.d/tnc-bridge.conf` (T37), and the tests run real generated
+ * string shipped in `filter.d/smb-bridge.conf` (T37), and the tests run real generated
  * lines through it. That is the whole point: a format change that breaks brute-force
  * protection fails the build instead of silently disabling the jail.
  *
@@ -15,9 +15,9 @@ import { dirname } from 'node:path';
  * a jail already knows how to read it.
  */
 
-export const AUTH_LOG_TAG = 'tnc-bridge';
+export const AUTH_LOG_TAG = 'smb-bridge';
 
-export const DEFAULT_AUTH_LOG_PATH = '/var/log/tnc-bridge/auth.log';
+export const DEFAULT_AUTH_LOG_PATH = '/var/log/smb-bridge/auth.log';
 
 /** Why an authentication attempt failed. Recorded for the operator, ignored by the regex. */
 export type AuthFailureReason =
@@ -29,7 +29,7 @@ export type AuthFailureReason =
   | 'invalid_token';
 
 /**
- * The failregex shipped in `filter.d/tnc-bridge.conf`.
+ * The failregex shipped in `filter.d/smb-bridge.conf`.
  *
  * `<HOST>` is Fail2Ban's own token; it is substituted with a host/address pattern at
  * load time. The reason suffix is optional so that adding or removing it later cannot
@@ -135,7 +135,7 @@ export class AuthLogWriter {
   /**
    * The directory is created on the first write, not here.
    *
-   * Constructing a logger used to create `/var/log/tnc-bridge` as a side effect, so any
+   * Constructing a logger used to create `/var/log/smb-bridge` as a side effect, so any
    * caller that built an `AuthManager` without naming a path touched a production
    * directory just by existing. That passes on a Windows developer machine — the path
    * becomes `C:\var\log\...`, which is creatable — and fails with EACCES on any Linux

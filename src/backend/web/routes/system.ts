@@ -86,7 +86,7 @@ export function systemRoutes(ctx: AppContext): Router {
         throttledOccurred: false,
       },
       disks,
-      interfaces: collectInterfaces(network.lan.interface, network.tnc.interface),
+      interfaces: collectInterfaces(network.lan.interface, network.machine.interface),
     };
     ok(res, info);
   });

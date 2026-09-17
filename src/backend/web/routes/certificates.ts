@@ -75,7 +75,7 @@ export function certificateRoutes(ctx: AppContext): Router {
         : [material.certPem.trimEnd(), material.chainPem.trimEnd(), ''].join('\n');
 
     res.setHeader('content-type', 'application/x-pem-file');
-    res.setHeader('content-disposition', 'attachment; filename="tnc-bridge-cert.pem"');
+    res.setHeader('content-disposition', 'attachment; filename="smb-bridge-cert.pem"');
     res.send(body);
   });
 

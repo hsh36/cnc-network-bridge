@@ -96,12 +96,12 @@ describe('preflight', () => {
 
   it('warns that DHCP on a dead link will not get an address', () => {
     const issues = preflight({
-      side: 'tnc',
+      side: 'machine',
       config: side({ interface: 'eth1', method: 'dhcp' }),
       interfaces: NICS,
     });
 
-    expect(issues[0]?.field).toBe('tnc.method');
+    expect(issues[0]?.field).toBe('machine.method');
     expect(issues[0]?.message).toContain('no link');
   });
 

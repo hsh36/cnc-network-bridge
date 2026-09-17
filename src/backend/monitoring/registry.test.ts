@@ -192,7 +192,7 @@ describe('MetricsRegistry', () => {
 
   describe('render', () => {
     it('emits HELP and TYPE exactly once per family', () => {
-      const counter = registry.counter('tnc_sync_files_total', 'Files synced.');
+      const counter = registry.counter('smb_bridge_sync_files_total', 'Files synced.');
       counter.inc(1, { direction: 'pull' });
       counter.inc(2, { direction: 'push' });
 
@@ -203,8 +203,8 @@ describe('MetricsRegistry', () => {
       // Repeating these per labelled child is a parse error in strict scrapers.
       expect(helpLines).toHaveLength(1);
       expect(typeLines).toHaveLength(1);
-      expect(helpLines[0]).toBe('# HELP tnc_sync_files_total Files synced.');
-      expect(typeLines[0]).toBe('# TYPE tnc_sync_files_total counter');
+      expect(helpLines[0]).toBe('# HELP smb_bridge_sync_files_total Files synced.');
+      expect(typeLines[0]).toBe('# TYPE smb_bridge_sync_files_total counter');
     });
 
     it('places HELP and TYPE before the samples of their family', () => {
@@ -278,11 +278,11 @@ describe('createBridgeMetrics', () => {
     const names = metrics.registry.names;
 
     for (const required of [
-      'tnc_sync_files_total',
-      'tnc_sync_duration_seconds',
-      'tnc_lock_count',
-      'tnc_error_total',
-      'tnc_disk_usage_bytes',
+      'smb_bridge_sync_files_total',
+      'smb_bridge_sync_duration_seconds',
+      'smb_bridge_lock_count',
+      'smb_bridge_error_total',
+      'smb_bridge_disk_usage_bytes',
       'tnc_network_throughput_bytes_per_second',
     ]) {
       expect(names).toContain(required);
@@ -311,7 +311,7 @@ describe('createBridgeMetrics', () => {
     metrics.locks.set(2);
 
     const lines = linesOf(metrics.registry.render());
-    expect(lines).toContain('tnc_sync_files_total{direction="pull"} 3');
-    expect(lines).toContain('tnc_lock_count 2');
+    expect(lines).toContain('smb_bridge_sync_files_total{direction="pull"} 3');
+    expect(lines).toContain('smb_bridge_lock_count 2');
   });
 });

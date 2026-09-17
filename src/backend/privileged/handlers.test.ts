@@ -253,13 +253,13 @@ describe('mount-share', () => {
    */
   it('refuses to build options in which a comma has injected a hard mount', () => {
     const request = build(MOUNT_REQUEST) as Extract<PrivilegedRequest, { verb: 'mount-share' }>;
-    expect(() => buildMountOptions(request, '/run/tnc-bridge/creds,hard')).toThrow(/hard mount/);
+    expect(() => buildMountOptions(request, '/run/smb-bridge/creds,hard')).toThrow(/hard mount/);
   });
 
   it('builds a clean option string for an ordinary credentials path', () => {
     const request = build(MOUNT_REQUEST) as Extract<PrivilegedRequest, { verb: 'mount-share' }>;
-    expect(buildMountOptions(request, '/run/tnc-bridge/creds-x')).toContain(
-      'credentials=/run/tnc-bridge/creds-x',
+    expect(buildMountOptions(request, '/run/smb-bridge/creds-x')).toContain(
+      'credentials=/run/smb-bridge/creds-x',
     );
   });
 
@@ -274,7 +274,7 @@ describe('mount-share', () => {
    */
   it.each(['timeo'])('does not pass %p, which modern cifs rejects outright', (option) => {
     const request = build(MOUNT_REQUEST) as Extract<PrivilegedRequest, { verb: 'mount-share' }>;
-    const rendered = buildMountOptions(request, '/run/tnc-bridge/creds');
+    const rendered = buildMountOptions(request, '/run/smb-bridge/creds');
 
     expect(rendered.split(',').map((entry) => entry.split('=')[0])).not.toContain(option);
   });
@@ -289,14 +289,14 @@ describe('mount-share', () => {
    */
   it('never passes nobrl, which would disable server-side locking entirely', () => {
     const request = build(MOUNT_REQUEST) as Extract<PrivilegedRequest, { verb: 'mount-share' }>;
-    const rendered = buildMountOptions(request, '/run/tnc-bridge/creds');
+    const rendered = buildMountOptions(request, '/run/smb-bridge/creds');
 
     expect(rendered.split(',')).not.toContain('nobrl');
   });
 
   it('keeps the options that bound how long a call against a dead server hangs', () => {
     const request = build(MOUNT_REQUEST) as Extract<PrivilegedRequest, { verb: 'mount-share' }>;
-    const rendered = buildMountOptions(request, '/run/tnc-bridge/creds');
+    const rendered = buildMountOptions(request, '/run/smb-bridge/creds');
 
     // Without `soft` a CIFS call against a vanished server blocks for ever, and the
     // process holding it cannot be killed.
@@ -754,11 +754,11 @@ describe('nodeFilesystem', () => {
 describe('fail2ban-unban', () => {
   it('unbans the address in the named jail', () => {
     const h = harness();
-    execute(build({ verb: 'fail2ban-unban', ip: '10.4.0.31', jail: 'tnc-bridge' }), h.deps);
+    execute(build({ verb: 'fail2ban-unban', ip: '10.4.0.31', jail: 'smb-bridge' }), h.deps);
     expect(h.calls[0]).toEqual([
       '/usr/bin/fail2banClient',
       'set',
-      'tnc-bridge',
+      'smb-bridge',
       'unbanip',
       '10.4.0.31',
     ]);
@@ -874,7 +874,7 @@ describe('apply-update', () => {
       releaseDir.releaseDir,
       CURRENT_RELEASE_LINK,
     ]);
-    expect(h.calls[1]).toEqual(['/usr/bin/systemctl', 'restart', 'tnc-bridge']);
+    expect(h.calls[1]).toEqual(['/usr/bin/systemctl', 'restart', 'smb-bridge']);
   });
 
   /**
@@ -936,7 +936,7 @@ describe('self-update', () => {
   };
 
   it('runs the updater in a transient unit, not as a child of the helper', () => {
-    // The updater's last act is `systemctl restart tnc-bridge`, and systemd kills the
+    // The updater's last act is `systemctl restart smb-bridge`, and systemd kills the
     // whole cgroup on restart. A child of this helper — itself a child of the service —
     // would be killed partway through the switch, leaving a tree that is neither
     // release. systemd-run is what puts it outside that cgroup.
@@ -974,7 +974,7 @@ describe('self-update', () => {
 
     execute(build({ ...REQUEST, healthTimeoutSeconds: 300 }), h.deps);
 
-    expect(h.calls[0]).toContain('--setenv=TNC_HEALTH_TIMEOUT=300');
+    expect(h.calls[0]).toContain('--setenv=SMB_HEALTH_TIMEOUT=300');
   });
 
   it('refuses when the updater script is not installed', () => {
@@ -1061,7 +1061,7 @@ describe('set-samba-user', () => {
 
   it('puts the account in the service group, or the share is unreadable', () => {
     // Found on the appliance: the account authenticated and then could not traverse
-    // /srv/tnc, which is 0750 and owned by the service account. A machine would get a
+    // /srv/smb-bridge, which is 0750 and owned by the service account. A machine would get a
     // share it may open and cannot read — which looks like a broken bridge rather than
     // a permissions mistake. The group also settles the other direction: a file the
     // machine writes lands in it, so the sync engine can push it back.

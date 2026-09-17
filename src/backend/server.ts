@@ -7,7 +7,7 @@ import { createShareCacheRootResolver } from './config/share-paths';
 import { AuthLogWriter } from './logging/auth-log';
 import { ConflictResolver } from './locking/conflict-resolver';
 import { LockManager } from './locking/lock-manager';
-import { TncLockSource } from './locking/tnc-lock-source';
+import { MachineLockSource } from './locking/machine-lock-source';
 import { ScheduleLockWindowManager } from './locking/schedule-windows';
 import { MetricsCollector } from './monitoring/collector';
 import { createBridgeMetrics } from './monitoring/registry';
@@ -56,7 +56,7 @@ export interface ServerPaths {
   /** Holds `cert.pem`/`key.pem`/`chain.pem`; a self-signed pair is generated if absent. */
   readonly certDir: string;
   readonly blobRoot: string;
-  /** Parent of every share's `cache_path` (`/srv/tnc/<name>`, see `001_init.sql`). */
+  /** Parent of every share's `cache_path` (`/srv/smb-bridge/<name>`, see `001_init.sql`). */
   readonly cacheRoot: string;
 }
 
@@ -66,13 +66,13 @@ export const PRODUCTION_PATHS: ServerPaths = {
   logDir: DEFAULT_LOG_DIR,
   secretKeyPath: DEFAULT_SECRET_KEY_PATH,
   certDir: DEFAULT_TLS_DIR,
-  blobRoot: '/var/lib/tnc-bridge/versions',
-  cacheRoot: '/srv/tnc',
+  blobRoot: '/var/lib/smb-bridge/versions',
+  cacheRoot: '/srv/smb-bridge',
 };
 
 /**
  * 443, because operators reach this appliance by typing a bare hostname into a browser.
- * Overridable through `TNC_HTTPS_PORT` for an instance that must not need
+ * Overridable through `SMB_HTTPS_PORT` for an instance that must not need
  * `CAP_NET_BIND_SERVICE`.
  */
 export const DEFAULT_HTTPS_PORT = 443;
@@ -84,17 +84,17 @@ export const STATIC_DIR = join(__dirname, '..', 'frontend');
  * Reads the listen port from the environment.
  *
  * A bad value is a hard failure rather than a silent fall back to 443: an operator who
- * set `TNC_HTTPS_PORT=8443` and got 443 anyway would be told the service is healthy while
+ * set `SMB_HTTPS_PORT=8443` and got 443 anyway would be told the service is healthy while
  * it sits on a port they deliberately avoided.
  */
 export function portFromEnv(env: NodeJS.ProcessEnv = process.env): number {
-  const raw = env.TNC_HTTPS_PORT;
+  const raw = env.SMB_HTTPS_PORT;
   if (raw === undefined || raw.trim() === '') {
     return DEFAULT_HTTPS_PORT;
   }
   const port = Number(raw);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-    throw new Error(`TNC_HTTPS_PORT must be an integer between 1 and 65535, got "${raw}"`);
+    throw new Error(`SMB_HTTPS_PORT must be an integer between 1 and 65535, got "${raw}"`);
   }
   return port;
 }
@@ -222,7 +222,7 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
   const audit = new AuditLog(service.db, logger);
 
   // The auth log has to follow `paths.logDir` like everything else. Left to its own
-  // default it writes to /var/log/tnc-bridge no matter what the caller asked for, so a
+  // default it writes to /var/log/smb-bridge no matter what the caller asked for, so a
   // test that redirected every other path still tried to create a production directory —
   // which passes on a developer's Windows box, where the path becomes C:/var/log/...,
   // and fails on any Linux host that is not root.
@@ -304,8 +304,8 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
 
   // What makes a lock on a control a lock in the database. Both feeds were written,
   // tested and never called, so `locks` only ever held rows the REST API or a schedule
-  // window had put there — see tnc-lock-source.ts.
-  const lockSource = new TncLockSource({
+  // window had put there — see machine-lock-source.ts.
+  const lockSource = new MachineLockSource({
     db: service.db,
     config: service.config,
     locks,

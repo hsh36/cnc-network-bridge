@@ -132,7 +132,7 @@ export function stripSyslogEnvelope(line: string): {
     rest = rest.slice(priMatch[0].length);
   }
 
-  // RFC3164 timestamp + hostname, e.g. "Sep  7 10:00:01 tnc-bridge ".
+  // RFC3164 timestamp + hostname, e.g. "Sep  7 10:00:01 smb-bridge ".
   rest = rest.replace(/^[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\S+\s+/, '');
   // ISO timestamp variant emitted by rsyslog's RSYSLOG_SyslogProtocol23Format.
   rest = rest.replace(/^\d{4}-\d{2}-\d{2}T[\d:.+-]+Z?\s+\S+\s+/, '');
@@ -235,7 +235,7 @@ export function parseAuditLine(line: string, options: AuditParseOptions = {}): A
 /**
  * Strips the share's filesystem root off a path Samba reported as absolute.
  *
- * The `…at` operations log the full path — `/srv/tnc/test/10.H`, not `10.H` — while the
+ * The `…at` operations log the full path — `/srv/smb-bridge/test/10.H`, not `10.H` — while the
  * file index is keyed share-relative. Left as-is, every audited event names a file that
  * does not exist as far as the rest of the bridge is concerned, so nothing matches and no
  * lock is ever attributed.
@@ -648,7 +648,7 @@ export class AuditIngest extends EventEmitter {
  */
 export const rsyslogRule = (port: number = DEFAULT_AUDIT_PORT): string =>
   [
-    '# Installed by CNC Network Bridge. Forwards Samba full_audit events to the',
+    '# Installed by SMB Bridge. Forwards Samba full_audit events to the',
     '# bridge and discards them afterwards, so they never reach the disk (R16).',
     `local5.*  @127.0.0.1:${port}`,
     'local5.*  stop',

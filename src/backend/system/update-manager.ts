@@ -59,7 +59,7 @@ export function displayVersion(value: string): string {
 }
 
 /** Where `scripts/self-update.sh` writes its progress. Must match the script. */
-export const DEFAULT_STATUS_FILE = '/var/lib/tnc-bridge/update-status.json';
+export const DEFAULT_STATUS_FILE = '/var/lib/smb-bridge/update-status.json';
 
 /**
  * Releases are tagged `vX.Y.Z`; versions are reported without the `v`.

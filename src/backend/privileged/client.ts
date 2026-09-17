@@ -18,7 +18,7 @@ import { type PrivilegedRequest, validateRequest } from './verbs';
  */
 
 export const SUDO_PATH = '/usr/bin/sudo';
-export const HELPER_PATH = '/usr/local/lib/tnc-bridge/helper';
+export const HELPER_PATH = '/usr/local/lib/smb-bridge/helper';
 
 export class PrivilegedCallError extends Error {
   constructor(

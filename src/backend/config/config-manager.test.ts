@@ -36,8 +36,8 @@ describe('defaults', () => {
   it('returns the documented defaults', () => {
     expect(config.get('sync').conflictMode).toBe('last_write_wins');
     expect(config.get('sync').mtimeToleranceMs).toBe(2000);
-    expect(config.get('locking').tncLockTtlS).toBe(900);
-    expect(config.get('smb').tnc.minProtocol).toBe('NT1');
+    expect(config.get('locking').machineLockTtlS).toBe(900);
+    expect(config.get('smb').machine.minProtocol).toBe('NT1');
   });
 
   it('does not overwrite an operator setting when defaults are re-materialised', () => {
@@ -73,9 +73,9 @@ describe('validation', () => {
   });
 
   it('rejects an unknown enum value', () => {
-    expect(() => config.set('sync', { ...config.get('sync'), conflictMode: 'tnc_always' })).toThrow(
-      ConfigValidationError,
-    );
+    expect(() =>
+      config.set('sync', { ...config.get('sync'), conflictMode: 'machine_always' }),
+    ).toThrow(ConfigValidationError);
   });
 
   it('reports the nested path for a nested field', () => {
@@ -83,12 +83,12 @@ describe('validation', () => {
     try {
       config.set('network', {
         ...config.get('network'),
-        tnc: { interface: 'eth1', address: 'not-an-address' },
+        machine: { interface: 'eth1', address: 'not-an-address' },
       });
     } catch (err) {
       error = err as ConfigValidationError;
     }
-    expect(error?.issues[0]?.path).toBe('tnc.address');
+    expect(error?.issues[0]?.path).toBe('machine.address');
   });
 
   it('surfaces a cross-field rule as a useful message', () => {
@@ -97,7 +97,7 @@ describe('validation', () => {
       config.set('network', {
         ...config.get('network'),
         lan: { interface: 'eth0', method: 'dhcp', dns: [] },
-        tnc: { interface: 'eth0', address: '192.168.42.1/24' },
+        machine: { interface: 'eth0', address: '192.168.42.1/24' },
       });
     } catch (err) {
       error = err as ConfigValidationError;
@@ -180,10 +180,10 @@ describe('secrets', () => {
     // This is the UI round-trip: fetch the redacted section, change something else,
     // send it back. The password must survive untouched.
     const fetched = config.get('smb');
-    config.set('smb', { ...fetched, tnc: { ...fetched.tnc, workgroup: 'WERKSTATT' } });
+    config.set('smb', { ...fetched, machine: { ...fetched.machine, workgroup: 'WERKSTATT' } });
 
     expect(config.getSecret(SECRET_KEY)).toBe(PASSWORD);
-    expect(config.get('smb').tnc.workgroup).toBe('WERKSTATT');
+    expect(config.get('smb').machine.workgroup).toBe('WERKSTATT');
   });
 
   it('replaces the password when a real value is submitted', () => {
@@ -226,7 +226,10 @@ describe('secrets', () => {
     try {
       // An invalid sibling field forces an error while a real password is in flight.
       const smb = withPassword(config.get('smb'), PASSWORD);
-      config.set('smb', { ...smb, tnc: { ...smb.tnc, workgroup: 'this-name-is-far-too-long' } });
+      config.set('smb', {
+        ...smb,
+        machine: { ...smb.machine, workgroup: 'this-name-is-far-too-long' },
+      });
     } catch (err) {
       error = err;
     }

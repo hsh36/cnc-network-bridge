@@ -186,7 +186,7 @@ export class FilesystemSyncPorts implements SyncPorts {
   }
 }
 
-/** `.tnc-tmp-*` is an in-flight transfer of ours, never a file to sync. */
+/** `.smb-tmp-*` is an in-flight transfer of ours, never a file to sync. */
 /**
  * Files the bridge itself owns, which are not content to be synchronised.
  *
@@ -204,7 +204,7 @@ function isBridgeOwned(relPath: string): boolean {
   return (
     name.startsWith(TEMP_FILE_PREFIX) ||
     isSidecarPath(relPath) ||
-    name.startsWith('.tnc-bridge-probe') ||
+    name.startsWith('.smb-bridge-probe') ||
     relPath === '.tnc-versions' ||
     relPath.startsWith('.tnc-versions/') ||
     name === 'lost+found'

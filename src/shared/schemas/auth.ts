@@ -13,7 +13,7 @@ export const adminPasswordSchema = z
   .min(12, 'Password must be at least 12 characters')
   .max(1024, 'Password must be at most 1024 characters')
   .refine(
-    (p) => !['password', 'tncbridge', '123456789012', 'administrator'].includes(p.toLowerCase()),
+    (p) => !['password', 'smbbridge', '123456789012', 'administrator'].includes(p.toLowerCase()),
     'Password is too common',
   );
 

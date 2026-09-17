@@ -184,13 +184,13 @@ export function Logs(): JSX.Element {
 
   const handleExportCsv = () => {
     const content = toCsv(selectedLogs.length > 0 ? selectedLogs : filteredLogs);
-    const filename = `tnc-bridge-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
+    const filename = `smb-bridge-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
     downloadFile(content, filename, 'text/csv');
   };
 
   const handleExportJson = () => {
     const content = toJson(selectedLogs.length > 0 ? selectedLogs : filteredLogs);
-    const filename = `tnc-bridge-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+    const filename = `smb-bridge-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
     downloadFile(content, filename, 'application/json');
   };
 

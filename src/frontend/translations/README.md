@@ -1,6 +1,6 @@
 # Internationalization (i18n) System
 
-This directory contains all translation files for the CNC Network Bridge UI.
+This directory contains all translation files for the SMB Bridge UI.
 
 ## Supported Languages
 
@@ -165,7 +165,7 @@ Each JSON file is organized by namespaces:
 
 ## Storage and Persistence
 
-Language preference is automatically saved to `localStorage` with key `tnc-bridge:language`. The selected language persists across browser sessions.
+Language preference is automatically saved to `localStorage` with key `smb-bridge:language`. The selected language persists across browser sessions.
 
 ## Fallback Behavior
 
@@ -190,7 +190,7 @@ For complex pages, you can use nested keys:
   "config": {
     "network": {
       "lan_interface": "LAN Interface",
-      "tnc_interface": "TNC Interface"
+      "machine_interface": "TNC Interface"
     }
   }
 }

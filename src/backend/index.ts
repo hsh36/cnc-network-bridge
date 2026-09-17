@@ -36,8 +36,8 @@ import {
  * the HTTPS server) register themselves as stages between config and the watchdog.
  */
 
-export const DEFAULT_DB_PATH = '/var/lib/tnc-bridge/tnc-bridge.db';
-export const DEFAULT_LOG_DIR = '/var/log/tnc-bridge';
+export const DEFAULT_DB_PATH = '/var/lib/smb-bridge/smb-bridge.db';
+export const DEFAULT_LOG_DIR = '/var/log/smb-bridge';
 
 /** systemd's default `TimeoutStopSec` is 90 s; finish well inside it. */
 export const DEFAULT_DRAIN_TIMEOUT_MS = 20_000;

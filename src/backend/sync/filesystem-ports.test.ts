@@ -61,7 +61,7 @@ describe('listPaths', () => {
   });
 
   it('hides our own in-flight temp files', async () => {
-    write(cachePath, '.tnc-tmp-part.h', 'half a file');
+    write(cachePath, '.smb-tmp-part.h', 'half a file');
     write(cachePath, 'part.h', 'a');
 
     // A temp file is a transfer in progress. Listing it would make the engine try to

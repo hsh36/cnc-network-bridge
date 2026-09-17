@@ -18,7 +18,7 @@ import { invokePrivileged, type HelperInvoker } from '../privileged/client';
  */
 
 /** Where `scripts/os-update.sh` writes. Must match the script. */
-export const DEFAULT_OS_STATUS_FILE = '/var/lib/tnc-bridge/os-update-status.json';
+export const DEFAULT_OS_STATUS_FILE = '/var/lib/smb-bridge/os-update-status.json';
 
 const OS_UPDATE_PHASES = new Set<string>([
   'idle',

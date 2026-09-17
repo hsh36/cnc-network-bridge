@@ -75,8 +75,8 @@ describe('acquire', () => {
     const lock = manager.acquire({
       shareId,
       relPath: 'PART1.H',
-      origin: 'tnc',
-      tncIp: '192.168.42.50',
+      origin: 'machine',
+      machineIp: '192.168.42.50',
     });
 
     expect(lock.id).toBeGreaterThan(0);
@@ -99,7 +99,7 @@ describe('acquire', () => {
     });
     const shareId = insertShare();
 
-    const lock = unmounted.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    const lock = unmounted.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
 
     expect(lock.releasedAt).toBeNull();
     expect(lock.serverLockOk).toBe(false);
@@ -111,7 +111,7 @@ describe('acquire', () => {
     // Deleting the path anyway would remove a stray local file and report the marker
     // cleaned up, while the real one on the server stays there for good.
     const shareId = insertShare();
-    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
     expect(existsSync(join(mountPoint, '.~lock.PART1.H#'))).toBe(true);
 
     const unmounted = new LockManager({
@@ -127,8 +127,8 @@ describe('acquire', () => {
 
   it('defaults a TNC lock TTL from configuration', () => {
     const shareId = insertShare();
-    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
-    expect(lock.expiresAt).toBe(clockSeconds + config.get('locking').tncLockTtlS);
+    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
+    expect(lock.expiresAt).toBe(clockSeconds + config.get('locking').machineLockTtlS);
   });
 
   it('leaves a manual lock without expiry unless a TTL is given', () => {
@@ -145,7 +145,7 @@ describe('acquire', () => {
 
   it('refuses a second lock on the same path', () => {
     const shareId = insertShare();
-    manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
     expect(() => manager.acquire({ shareId, relPath: 'PART1.H', origin: 'manual' })).toThrow(
       LockHeldError,
     );
@@ -153,14 +153,14 @@ describe('acquire', () => {
 
   it('allows locking the same path again once the first lock is released', () => {
     const shareId = insertShare();
-    const first = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    const first = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
     manager.release(first.id);
     expect(() => manager.acquire({ shareId, relPath: 'PART1.H', origin: 'manual' })).not.toThrow();
   });
 
   it('records a projection failure without refusing the lock', () => {
     const shareId = insertShare({ mount_point: join(mountPoint, 'does-not-exist') });
-    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
     expect(lock.serverLockOk).toBe(false);
     expect(lock.serverLockError).toBeTruthy();
   });
@@ -177,7 +177,7 @@ describe('acquire', () => {
 describe('release', () => {
   it('removes the sidecar marker and marks the row released', () => {
     const shareId = insertShare();
-    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
     const released = manager.release(lock.id, { reason: 'closed on TNC' });
 
     expect(released.releasedAt).toBe(clockSeconds);
@@ -200,13 +200,13 @@ describe('release', () => {
 describe('expireStale', () => {
   it('leaves an unexpired lock alone', () => {
     const shareId = insertShare();
-    manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
     expect(manager.expireStale()).toHaveLength(0);
   });
 
   it('releases a lock past its TTL and removes its sidecar', () => {
     const shareId = insertShare();
-    manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc', ttlSeconds: 30 });
+    manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine', ttlSeconds: 30 });
     clockSeconds += 31;
 
     const expired = manager.expireStale();
@@ -226,14 +226,14 @@ describe('expireStale', () => {
 describe('list and getActive', () => {
   it('finds the active lock for a path', () => {
     const shareId = insertShare();
-    manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
     expect(manager.getActive(shareId, 'PART1.H')?.relPath).toBe('PART1.H');
     expect(manager.getActive(shareId, 'OTHER.H')).toBeUndefined();
   });
 
   it('excludes released locks by default and includes them on request', () => {
     const shareId = insertShare();
-    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
     manager.release(lock.id);
 
     expect(manager.list({ limit: 100, offset: 0, includeReleased: false }).total).toBe(0);
@@ -242,7 +242,7 @@ describe('list and getActive', () => {
 
   it('filters by origin', () => {
     const shareId = insertShare();
-    manager.acquire({ shareId, relPath: 'A.H', origin: 'tnc' });
+    manager.acquire({ shareId, relPath: 'A.H', origin: 'machine' });
     manager.acquire({ shareId, relPath: 'B.H', origin: 'manual' });
 
     const result = manager.list({
@@ -262,10 +262,15 @@ describe('lock events', () => {
     const seen: string[] = [];
     manager.onLockEvent((e) => seen.push(e.action));
 
-    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc', ttlSeconds: 30 });
+    const lock = manager.acquire({
+      shareId,
+      relPath: 'PART1.H',
+      origin: 'machine',
+      ttlSeconds: 30,
+    });
     manager.release(lock.id);
 
-    const second = manager.acquire({ shareId, relPath: 'A.H', origin: 'tnc', ttlSeconds: 10 });
+    const second = manager.acquire({ shareId, relPath: 'A.H', origin: 'machine', ttlSeconds: 10 });
     void second;
     clockSeconds += 20;
     manager.expireStale();
@@ -279,7 +284,7 @@ describe('lock events', () => {
     const unsubscribe = manager.onLockEvent((e) => seen.push(e.action));
     unsubscribe();
 
-    manager.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
     expect(seen).toHaveLength(0);
   });
 
@@ -339,7 +344,7 @@ describe('server-enforced locks', () => {
     const { locker, taken } = recordingLocker();
     const shareId = insertShare();
 
-    managerWith(locker).acquire({ shareId, relPath: 'sub/PART1.H', origin: 'tnc' });
+    managerWith(locker).acquire({ shareId, relPath: 'sub/PART1.H', origin: 'machine' });
 
     // The cache copy is ours; locking it would protect nothing from anyone.
     expect(taken).toEqual([posix.join(mountPoint, 'sub/PART1.H')]);
@@ -349,7 +354,7 @@ describe('server-enforced locks', () => {
     const { locker } = recordingLocker();
     const shareId = insertShare();
 
-    const lock = managerWith(locker).acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    const lock = managerWith(locker).acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
 
     expect(existsSync(join(mountPoint, '.~lock.PART1.H#'))).toBe(true);
     expect(lock.serverLockOk).toBe(true);
@@ -359,7 +364,7 @@ describe('server-enforced locks', () => {
     const { locker, dropped } = recordingLocker();
     const shareId = insertShare();
     const mgr = managerWith(locker);
-    const lock = mgr.acquire({ shareId, relPath: 'PART1.H', origin: 'tnc' });
+    const lock = mgr.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
 
     mgr.release(lock.id);
 
@@ -376,7 +381,7 @@ describe('server-enforced locks', () => {
     } as unknown as ByteRangeLocker;
     const shareId = insertShare();
 
-    const lock = managerWith(failing).acquire({ shareId, relPath: 'GONE.H', origin: 'tnc' });
+    const lock = managerWith(failing).acquire({ shareId, relPath: 'GONE.H', origin: 'machine' });
 
     // The row still stands: the bridge's own lock is the row, and the control's file
     // stays protected here even when the projection onto the server failed.
@@ -390,7 +395,7 @@ describe('server-enforced locks', () => {
     // them. Without this the bridge comes back believing it protects open files.
     const { locker, taken } = recordingLocker();
     const shareId = insertShare();
-    managerWith(locker).acquire({ shareId, relPath: 'STILL_OPEN.H', origin: 'tnc' });
+    managerWith(locker).acquire({ shareId, relPath: 'STILL_OPEN.H', origin: 'machine' });
     taken.length = 0;
 
     const afterRestart = managerWith(locker);
@@ -404,7 +409,7 @@ describe('server-enforced locks', () => {
     const { locker, taken } = recordingLocker();
     const shareId = insertShare();
     const mgr = managerWith(locker);
-    const lock = mgr.acquire({ shareId, relPath: 'DONE.H', origin: 'tnc' });
+    const lock = mgr.acquire({ shareId, relPath: 'DONE.H', origin: 'machine' });
     mgr.release(lock.id);
     taken.length = 0;
 
@@ -415,7 +420,7 @@ describe('server-enforced locks', () => {
   it('marks a lock unenforced when its share is not mounted at startup', () => {
     const { locker } = recordingLocker();
     const shareId = insertShare();
-    managerWith(locker).acquire({ shareId, relPath: 'STILL_OPEN.H', origin: 'tnc' });
+    managerWith(locker).acquire({ shareId, relPath: 'STILL_OPEN.H', origin: 'machine' });
 
     const unmounted = new LockManager({
       db,

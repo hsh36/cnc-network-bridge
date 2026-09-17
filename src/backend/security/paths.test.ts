@@ -7,7 +7,7 @@ import {
   trySafeResolve,
 } from './paths';
 
-const ROOT = resolve(sep, 'srv', 'tnc', 'programs');
+const ROOT = resolve(sep, 'srv', 'machine', 'programs');
 
 describe('isWithin', () => {
   it('accepts the root itself', () => {
@@ -19,11 +19,11 @@ describe('isWithin', () => {
   });
 
   it('rejects a sibling directory', () => {
-    expect(isWithin(ROOT, resolve(sep, 'srv', 'tnc', 'other'))).toBe(false);
+    expect(isWithin(ROOT, resolve(sep, 'srv', 'machine', 'other'))).toBe(false);
   });
 
   it('rejects a sibling whose name merely starts with the root', () => {
-    // The classic prefix bug: "/srv/tnc/programs-backup" starts with the root string
+    // The classic prefix bug: "/srv/smb-bridge/programs-backup" starts with the root string
     // but is not inside it. Requiring the separator is what catches this.
     expect(isWithin(ROOT, `${ROOT}-backup`)).toBe(false);
   });

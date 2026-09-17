@@ -238,7 +238,7 @@ describe('startServer', () => {
           name: 'programs',
           unc: '//fileserver/cnc$/programs',
           mount: '/mnt/programs',
-          cache: '/srv/tnc/programs',
+          cache: '/srv/smb-bridge/programs',
           ts: Math.floor(Date.now() / 1000),
         },
       ).lastInsertRowid,
@@ -314,14 +314,14 @@ describe('startServer', () => {
 describe('portFromEnv', () => {
   it('defaults to 443 when the variable is absent or empty', () => {
     expect(portFromEnv({})).toBe(DEFAULT_HTTPS_PORT);
-    expect(portFromEnv({ TNC_HTTPS_PORT: '' })).toBe(DEFAULT_HTTPS_PORT);
-    expect(portFromEnv({ TNC_HTTPS_PORT: '   ' })).toBe(DEFAULT_HTTPS_PORT);
+    expect(portFromEnv({ SMB_HTTPS_PORT: '' })).toBe(DEFAULT_HTTPS_PORT);
+    expect(portFromEnv({ SMB_HTTPS_PORT: '   ' })).toBe(DEFAULT_HTTPS_PORT);
   });
 
   it('accepts a valid port', () => {
-    expect(portFromEnv({ TNC_HTTPS_PORT: '8443' })).toBe(8443);
-    expect(portFromEnv({ TNC_HTTPS_PORT: '1' })).toBe(1);
-    expect(portFromEnv({ TNC_HTTPS_PORT: '65535' })).toBe(65_535);
+    expect(portFromEnv({ SMB_HTTPS_PORT: '8443' })).toBe(8443);
+    expect(portFromEnv({ SMB_HTTPS_PORT: '1' })).toBe(1);
+    expect(portFromEnv({ SMB_HTTPS_PORT: '65535' })).toBe(65_535);
   });
 
   it.each(['0', '65536', '-1', 'https', '8443.5', '84 43'])(
@@ -329,7 +329,7 @@ describe('portFromEnv', () => {
     (value) => {
       // Falling back would report a healthy service on a port the operator deliberately
       // avoided — the one outcome worse than not starting at all.
-      expect(() => portFromEnv({ TNC_HTTPS_PORT: value })).toThrow(/TNC_HTTPS_PORT/);
+      expect(() => portFromEnv({ SMB_HTTPS_PORT: value })).toThrow(/SMB_HTTPS_PORT/);
     },
   );
 });
@@ -357,11 +357,11 @@ function fetchCertificateFingerprint(port: number): Promise<string | undefined> 
 
 describe('PRODUCTION_PATHS', () => {
   it('points at the directories the installer creates and the unit allows writing', () => {
-    expect(PRODUCTION_PATHS.dbPath.startsWith('/var/lib/tnc-bridge/')).toBe(true);
-    expect(PRODUCTION_PATHS.blobRoot.startsWith('/var/lib/tnc-bridge/')).toBe(true);
-    expect(PRODUCTION_PATHS.logDir).toBe('/var/log/tnc-bridge');
-    expect(PRODUCTION_PATHS.certDir.startsWith('/etc/tnc-bridge')).toBe(true);
-    expect(PRODUCTION_PATHS.cacheRoot).toBe('/srv/tnc');
+    expect(PRODUCTION_PATHS.dbPath.startsWith('/var/lib/smb-bridge/')).toBe(true);
+    expect(PRODUCTION_PATHS.blobRoot.startsWith('/var/lib/smb-bridge/')).toBe(true);
+    expect(PRODUCTION_PATHS.logDir).toBe('/var/log/smb-bridge');
+    expect(PRODUCTION_PATHS.certDir.startsWith('/etc/smb-bridge')).toBe(true);
+    expect(PRODUCTION_PATHS.cacheRoot).toBe('/srv/smb-bridge');
   });
 });
 

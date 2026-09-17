@@ -719,8 +719,8 @@ async function probeWritable(
   const dir = deps.tmpDir ?? tmpdir();
   const localSource = join(dir, `tnc-probe-${token}.tmp`);
   const localReadback = join(dir, `tnc-probe-${token}.back`);
-  const remoteName = `.tnc-bridge-probe-${token}`;
-  const payload = `cnc-network-bridge connectivity probe ${token}\n`;
+  const remoteName = `.smb-bridge-probe-${token}`;
+  const payload = `smb-bridge connectivity probe ${token}\n`;
   // The sub-path from the UNC, if any, so the probe tests the directory that will
   // actually be synced rather than the share root — permissions frequently differ.
   const remotePath = target.path === '' ? remoteName : `${target.path}/${remoteName}`;
@@ -770,7 +770,7 @@ async function probeWritable(
     return { ok: true, failure: UNKNOWN_FAILURE };
   } finally {
     // Always remove the remote probe file, even when an earlier step threw. Leaving
-    // `.tnc-bridge-probe-*` litter on a customer's share after a failed test is the kind
+    // `.smb-bridge-probe-*` litter on a customer's share after a failed test is the kind
     // of detail that erodes trust in everything else the product does.
     await deps
       .run(

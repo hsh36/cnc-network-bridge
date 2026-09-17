@@ -54,7 +54,7 @@ export const COMPRESS_THRESHOLD_BYTES = 1024 * 1024;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
 export interface BlobStoreOptions {
-  /** Root directory, e.g. `/var/lib/tnc-bridge/versions`. Created on demand. */
+  /** Root directory, e.g. `/var/lib/smb-bridge/versions`. Created on demand. */
   readonly root: string;
   /** Set to 0 to disable compression entirely. */
   readonly compressThresholdBytes?: number;

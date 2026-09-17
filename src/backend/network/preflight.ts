@@ -68,7 +68,7 @@ export function isInSubnet(ip: string, cidr: string): boolean {
 }
 
 export interface PreflightInput {
-  readonly side: 'lan' | 'tnc';
+  readonly side: 'lan' | 'machine';
   readonly config: NetworkSide;
   readonly interfaces: readonly InterfaceDiscovery[];
 }

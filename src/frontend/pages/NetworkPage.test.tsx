@@ -24,7 +24,7 @@ const network = (mode: NetworkMode) => ({
     mtu: 1500,
     ipv6: false,
   },
-  tnc: {
+  machine: {
     interface: 'eth1',
     hostname: '',
     method: 'static',

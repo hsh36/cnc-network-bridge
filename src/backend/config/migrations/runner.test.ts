@@ -70,7 +70,7 @@ describe('loadMigrations', () => {
 
   it('allows an explicit opt-out of the runner transaction', () => {
     const dir = migrationsDir({
-      '001_a.sql': '-- tnc-bridge: no-transaction\nPRAGMA foreign_keys=OFF;\nCREATE TABLE a (x);',
+      '001_a.sql': '-- smb-bridge: no-transaction\nPRAGMA foreign_keys=OFF;\nCREATE TABLE a (x);',
     });
     const [migration] = loadMigrations(dir);
     expect(migration?.transactional).toBe(false);

@@ -36,7 +36,7 @@ beforeEach(() => {
       name: 'test-share',
       unc: '//server/share$',
       mount: '/mnt/test-share',
-      cache: '/srv/tnc/test-share',
+      cache: '/srv/smb-bridge/test-share',
       now: clock,
     },
   );
@@ -102,8 +102,8 @@ describe('ScheduleLockWindowManager', () => {
       locks.acquire({
         shareId: 1,
         relPath: 'programs/part1.H',
-        origin: 'tnc',
-        tncIp: '192.168.1.100',
+        origin: 'machine',
+        machineIp: '192.168.1.100',
         ownerLabel: 'TNC-640-Halle1',
       });
 
@@ -125,7 +125,7 @@ describe('ScheduleLockWindowManager', () => {
         `SELECT id, origin FROM locks WHERE rel_path = 'programs/part1.H' AND released_at IS NULL`,
       );
       expect(tnclocks).toHaveLength(1);
-      expect((tnclocks[0] as { origin: string }).origin).toBe('tnc');
+      expect((tnclocks[0] as { origin: string }).origin).toBe('machine');
     });
 
     it('respects durationMinutes for TTL', () => {
@@ -224,8 +224,8 @@ describe('ScheduleLockWindowManager', () => {
       locks.acquire({
         shareId: 1,
         relPath: 'programs/part1.H',
-        origin: 'tnc',
-        tncIp: '192.168.1.100',
+        origin: 'machine',
+        machineIp: '192.168.1.100',
         ownerLabel: 'TNC-640',
       });
       locks.acquire({
@@ -252,7 +252,7 @@ describe('ScheduleLockWindowManager', () => {
         `SELECT origin FROM locks WHERE share_id = 1 AND released_at IS NULL`,
       );
       expect(remaining).toHaveLength(1);
-      expect((remaining[0] as { origin: string }).origin).toBe('tnc');
+      expect((remaining[0] as { origin: string }).origin).toBe('machine');
     });
 
     it('does not release manual locks', () => {

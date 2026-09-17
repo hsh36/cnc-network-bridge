@@ -395,14 +395,14 @@ describe('decide — conflict resolution', () => {
   const localNewer = side(11, 10_000, h('b'));
   const remoteOlder = side(12, 1_000, h('c'));
 
-  it('tnc_wins always pushes the local copy and captures the server loser', () => {
-    const result = run(localNewer, remoteOlder, base, { conflictMode: 'tnc_wins' });
+  it('machine_wins always pushes the local copy and captures the server loser', () => {
+    const result = run(localNewer, remoteOlder, base, { conflictMode: 'machine_wins' });
     expect(result.action).toBe('PUSH');
     expect(result.reason).toBe('conflict_resolved');
     expect(result.nextState).toBe('conflict');
     expect(result.captureVersion).toEqual({ side: 'remote', reason: 'conflict_loser' });
     expect(result.conflict).toEqual({
-      modeApplied: 'tnc_wins',
+      modeApplied: 'machine_wins',
       winner: 'local',
       tieBroken: false,
       localMtime: 10_000,
@@ -476,8 +476,8 @@ describe('decide — conflict resolution', () => {
     expect(remoteDeleted.captureVersion).toBeNull();
   });
 
-  it('deletes the remote when tnc_wins backs a local deletion', () => {
-    const result = run(null, side(12, 1_000, h('c')), base, { conflictMode: 'tnc_wins' });
+  it('deletes the remote when machine_wins backs a local deletion', () => {
+    const result = run(null, side(12, 1_000, h('c')), base, { conflictMode: 'machine_wins' });
     expect(result.action).toBe('DELETE_REMOTE');
     expect(result.captureVersion).toEqual({ side: 'remote', reason: 'conflict_loser' });
     expect(result.detail).toContain('deleted locally but changed on the server');
@@ -505,7 +505,7 @@ describe('decide — conflict resolution', () => {
   });
 
   it('captures the losing side in every mode where the loser holds content', () => {
-    const modes: ConflictMode[] = ['tnc_wins', 'server_wins', 'last_write_wins'];
+    const modes: ConflictMode[] = ['machine_wins', 'server_wins', 'last_write_wins'];
     for (const conflictMode of modes) {
       const result = run(localNewer, remoteOlder, base, { conflictMode });
       expect(result.captureVersion).not.toBeNull();
@@ -606,7 +606,7 @@ describe('decide — availability overrides', () => {
     // The hard safety rule: never overwrite a program a machine is running.
     const result = run(side(10, 100, h('a')), side(12, 300, h('d')), base, { locked: true });
     expect(result.action).toBe('DEFER');
-    expect(result.reason).toBe('locked_by_tnc');
+    expect(result.reason).toBe('locked_by_machine');
     expect(result.nextState).toBe('deferred_locked');
     expect(result.detail).toContain('holds PROG.H open');
   });
@@ -617,7 +617,7 @@ describe('decide — availability overrides', () => {
       locked: true,
     });
     expect(result.action).toBe('DEFER');
-    expect(result.reason).toBe('locked_by_tnc');
+    expect(result.reason).toBe('locked_by_machine');
   });
 
   it('does not defer a push merely because the file is locked', () => {
@@ -633,7 +633,7 @@ describe('decide — availability overrides', () => {
       locked: true,
     });
     expect(result.action).toBe('DEFER');
-    expect(result.reason).toBe('locked_by_tnc');
+    expect(result.reason).toBe('locked_by_machine');
     expect(result.nextState).toBe('deferred_locked');
   });
 
@@ -725,7 +725,7 @@ function mulberry32(seed: number): () => number {
 }
 
 describe('property: no verdict discards data without capturing a version', () => {
-  const MODES: ConflictMode[] = ['tnc_wins', 'server_wins', 'last_write_wins'];
+  const MODES: ConflictMode[] = ['machine_wins', 'server_wins', 'last_write_wins'];
   const HASHES = [h('a'), h('b'), h('c'), null];
   const SEED = 0x7f18;
 

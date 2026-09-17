@@ -12,7 +12,7 @@ import { FirewallService } from './firewall-service';
 function network(overrides: Partial<NetworkConfig> = {}): NetworkConfig {
   return networkConfigSchema.parse({
     lan: { interface: 'eth0' },
-    tnc: { interface: 'eth1' },
+    machine: { interface: 'eth1' },
     ...overrides,
   });
 }

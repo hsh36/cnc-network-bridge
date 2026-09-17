@@ -25,7 +25,7 @@ describe('configuration defaults', () => {
       concurrency: 4,
       bandwidthLimitKbps: null,
       protectDeletes: false,
-      excludePatterns: ['**/.DS_Store', '**/Thumbs.db', '**/~$*', '**/.tnc-tmp-*'],
+      excludePatterns: ['**/.DS_Store', '**/Thumbs.db', '**/~$*', '**/.smb-tmp-*'],
       failoverReadOnly: true,
       maxFileSizeMb: 512,
       // T40's advanced policies. Empty on a fresh install: every one of these changes
@@ -43,7 +43,7 @@ describe('configuration defaults', () => {
     expect(configSectionSchemas.locking.parse({})).toEqual({
       enabled: true,
       serverProjection: 'byte_range',
-      tncLockTtlS: 900,
+      machineLockTtlS: 900,
       releaseLingerS: 5,
       scheduleDefault: 'none',
       blockPullWhenLocked: true,
@@ -93,11 +93,11 @@ describe('configuration defaults', () => {
 
   it('defaults the TNC side to NT1 — the entire point of the product', () => {
     const smb = smbConfigSchema.parse({});
-    expect(smb.tnc.minProtocol).toBe('NT1');
-    expect(smb.tnc.dosCharset).toBe('CP850');
+    expect(smb.machine.minProtocol).toBe('NT1');
+    expect(smb.machine.dosCharset).toBe('CP850');
     // LANMAN is not a setting any more: it is a lookup table rather than encryption,
     // and every SMB1 control this bridge exists for speaks NTLM.
-    expect('lanmanAuth' in smb.tnc).toBe(false);
+    expect('lanmanAuth' in smb.machine).toBe(false);
     expect(smb.server.minProtocol).toBe('SMB3_11');
     expect(smb.server.seal).toBe(true);
   });
@@ -135,13 +135,15 @@ describe('network configuration cross-field rules', () => {
     // which is precisely the exposure this product exists to remove.
     const result = networkConfigSchema.safeParse({
       lan: { interface: 'eth0' },
-      tnc: { interface: 'eth0' },
+      machine: { interface: 'eth0' },
     });
     expect(result.success).toBe(false);
   });
 
   it('rejects a TNC address that is not CIDR-qualified', () => {
-    expect(networkConfigSchema.safeParse({ tnc: { address: '192.168.42.1' } }).success).toBe(false);
+    expect(networkConfigSchema.safeParse({ machine: { address: '192.168.42.1' } }).success).toBe(
+      false,
+    );
   });
 
   it('refuses one interface in either mode, with no tag left to make it safe', () => {
@@ -152,7 +154,7 @@ describe('network configuration cross-field rules', () => {
       const result = networkConfigSchema.safeParse({
         mode,
         lan: { interface: 'eth0' },
-        tnc: { interface: 'eth0' },
+        machine: { interface: 'eth0' },
       });
       expect(result.success).toBe(false);
     }
@@ -163,7 +165,7 @@ describe('network configuration cross-field rules', () => {
     // believe is doing the separating that the second network card is doing.
     const parsed = networkConfigSchema.parse({});
     expect(parsed.lan).not.toHaveProperty('vlan');
-    expect(parsed.tnc).not.toHaveProperty('vlan');
+    expect(parsed.machine).not.toHaveProperty('vlan');
   });
 
   it('defaults to an existing machine network with no internet for the machines', () => {
@@ -178,7 +180,7 @@ describe('network configuration cross-field rules', () => {
       networkConfigSchema.safeParse({
         mode: 'vlan-trunk',
         lan: { interface: 'eth0' },
-        tnc: { interface: 'eth1' },
+        machine: { interface: 'eth1' },
       }).success,
     ).toBe(false);
   });
@@ -186,23 +188,27 @@ describe('network configuration cross-field rules', () => {
   it('requires an address for a static TNC side but not a gateway', () => {
     // The bridge is the gateway on the machine segment, so asking for one would be
     // asking the operator to point it at this device.
-    expect(networkConfigSchema.safeParse({ tnc: { method: 'static' } }).success).toBe(true);
+    expect(networkConfigSchema.safeParse({ machine: { method: 'static' } }).success).toBe(true);
     expect(
-      networkConfigSchema.safeParse({ tnc: { method: 'static', address: undefined } }).success,
+      networkConfigSchema.safeParse({ machine: { method: 'static', address: undefined } }).success,
     ).toBe(true);
   });
 
   it('defaults each side independently', () => {
     const parsed = networkConfigSchema.parse({});
     expect(parsed.lan).toMatchObject({ method: 'dhcp', mtu: 1500, ipv6: false });
-    expect(parsed.tnc).toMatchObject({ method: 'static', address: '192.168.42.1/24', mtu: 1500 });
+    expect(parsed.machine).toMatchObject({
+      method: 'static',
+      address: '192.168.42.1/24',
+      mtu: 1500,
+    });
   });
 
   it('accepts a jumbo-frame LAN alongside a standard TNC segment', () => {
     // The case the old single global MTU could not express at all.
     const result = networkConfigSchema.safeParse({
       lan: { method: 'dhcp', mtu: 9000 },
-      tnc: { mtu: 1500 },
+      machine: { mtu: 1500 },
     });
     expect(result.success).toBe(true);
     expect(result.success && result.data.lan.mtu).toBe(9000);

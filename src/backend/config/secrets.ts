@@ -20,7 +20,7 @@ const IV_BYTES = 12;
 const TAG_BYTES = 16;
 const ENVELOPE_VERSION = 'v1';
 
-export const DEFAULT_SECRET_KEY_PATH = '/etc/tnc-bridge/secret.key';
+export const DEFAULT_SECRET_KEY_PATH = '/etc/smb-bridge/secret.key';
 
 export class SecretError extends Error {
   constructor(
@@ -40,7 +40,7 @@ export function generateSecretKey(): Buffer {
 /**
  * Reads the key from disk.
  *
- * The file is written by the installer as `0600 tncbridge:tncbridge` — owned by the
+ * The file is written by the installer as `0600 smbbridge:smbbridge` — owned by the
  * service account, because the check below leaves no group bit for it to read through.
  * If the mode is wider than that on Linux this throws rather than warns: a
  * world-readable key is indistinguishable from no encryption at all, and silently

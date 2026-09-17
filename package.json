@@ -1,14 +1,14 @@
 {
-  "name": "cnc-network-bridge",
+  "name": "smb-bridge",
   "version": "0.3.14",
   "private": true,
   "description": "SMB protocol bridge connecting SMB 1.0-only HEIDENHAIN TNC machines to modern SMB 3.1.1+ servers",
   "main": "dist/backend/index.js",
   "license": "GPL-3.0-or-later",
-  "author": "CNC Network Bridge Contributors",
+  "author": "SMB Bridge Contributors",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hsh36/cnc-network-bridge.git"
+    "url": "git+https://github.com/hsh36/smb-bridge.git"
   },
   "engines": {
     "node": ">=22.0.0",

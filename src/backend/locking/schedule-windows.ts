@@ -89,7 +89,7 @@ export class ScheduleLockWindowManager {
       const existing = this.locks.getActive(shareId, file.rel_path);
       if (existing !== undefined) {
         // If it's a TNC lock, it always wins — skip this path
-        if (existing.origin === 'tnc') {
+        if (existing.origin === 'machine') {
           skipped += 1;
           this.logger?.debug(
             { shareId, relPath: file.rel_path, lockId: existing.id },

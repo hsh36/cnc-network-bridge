@@ -58,7 +58,7 @@ export interface AcquireLockInput {
   readonly relPath: string;
   readonly origin: LockOrigin;
   readonly ownerLabel?: string | null;
-  readonly tncIp?: string | null;
+  readonly machineIp?: string | null;
   readonly smbPid?: number | null;
   readonly smbSessionId?: string | null;
   /** Overrides the configured TTL. `null` means "held until explicitly released". */
@@ -89,7 +89,7 @@ interface LockRow {
   rel_path: string;
   origin: string;
   owner_label: string | null;
-  tnc_ip: string | null;
+  machine_ip: string | null;
   smb_pid: number | null;
   smb_session_id: string | null;
   server_lock_kind: string;
@@ -112,7 +112,7 @@ function toLock(row: LockRow): Lock {
     relPath: row.rel_path,
     origin: row.origin as LockOrigin,
     ownerLabel: row.owner_label,
-    tncIp: row.tnc_ip,
+    machineIp: row.machine_ip,
     smbPid: row.smb_pid,
     smbSessionId: row.smb_session_id,
     serverLockKind: row.server_lock_kind as ServerLockKind,
@@ -191,8 +191,8 @@ export class LockManager {
     const ttl =
       input.ttlSeconds !== undefined
         ? input.ttlSeconds
-        : input.origin === 'tnc'
-          ? locking.tncLockTtlS
+        : input.origin === 'machine'
+          ? locking.machineLockTtlS
           : null;
     const expiresAt = ttl === null || ttl === 0 ? null : now + ttl;
     const serverLockKind: ServerLockKind = locking.serverProjection;
@@ -210,10 +210,10 @@ export class LockManager {
 
         const result = this.db.run(
           `INSERT INTO locks (
-             share_id, rel_path, origin, owner_label, tnc_ip, smb_pid, smb_session_id,
+             share_id, rel_path, origin, owner_label, machine_ip, smb_pid, smb_session_id,
              server_lock_kind, server_lock_ok, server_lock_error, acquired_at, expires_at, note
            ) VALUES (
-             @shareId, @relPath, @origin, @ownerLabel, @tncIp, @smbPid, @smbSessionId,
+             @shareId, @relPath, @origin, @ownerLabel, @machineIp, @smbPid, @smbSessionId,
              @serverLockKind, 0, NULL, @acquiredAt, @expiresAt, @note
            )`,
           {
@@ -221,7 +221,7 @@ export class LockManager {
             relPath: input.relPath,
             origin: input.origin,
             ownerLabel: input.ownerLabel ?? null,
-            tncIp: input.tncIp ?? null,
+            machineIp: input.machineIp ?? null,
             smbPid: input.smbPid ?? null,
             smbSessionId: input.smbSessionId ?? null,
             serverLockKind,
@@ -425,7 +425,7 @@ export class LockManager {
       const result = writeSidecar(
         mount,
         row.rel_path,
-        `Locked by CNC Network Bridge (${marker}) at ${new Date(row.acquired_at * 1000).toISOString()}\n`,
+        `Locked by SMB Bridge (${marker}) at ${new Date(row.acquired_at * 1000).toISOString()}\n`,
       );
       this.db.run(
         `UPDATE locks SET server_lock_ok = @ok, server_lock_error = @err WHERE id = @id`,

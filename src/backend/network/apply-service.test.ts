@@ -99,7 +99,7 @@ beforeEach(() => {
   config = ConfigManager.create({ db, secretKey: generateSecretKey() });
   config.set('network', {
     lan: { interface: 'eth0', method: 'static', address: '10.0.0.5/24', gateway: '10.0.0.1' },
-    tnc: { interface: 'eth1', method: 'static', address: '192.168.42.1/24' },
+    machine: { interface: 'eth1', method: 'static', address: '192.168.42.1/24' },
     applyRevertSeconds: 300,
   });
 });
@@ -120,7 +120,7 @@ describe('apply', () => {
   it('applies outright when the change cannot touch this connection', () => {
     // The operator is on the LAN and is changing the machine segment. Making them
     // confirm would be theatre — nothing they are using is at risk.
-    const result = service().apply('tnc', '10.0.0.5');
+    const result = service().apply('machine', '10.0.0.5');
 
     expect(result.status).toBe('applied');
     expect(lastApply().revertAfterSeconds).toBe(0);
@@ -130,7 +130,7 @@ describe('apply', () => {
   it('arms a rollback for the TNC side when the request came in over it', () => {
     // The rule is about the caller's own path, not about which side is "safe": someone
     // managing the bridge from the machine segment can lock themselves out just as well.
-    expect(service().apply('tnc', '192.168.42.1').status).toBe('pending_confirmation');
+    expect(service().apply('machine', '192.168.42.1').status).toBe('pending_confirmation');
   });
 
   it('treats an unknown local address as risky', () => {
@@ -149,7 +149,7 @@ describe('apply', () => {
   it('refuses a configuration that would not work, without calling the helper', () => {
     config.set('network', {
       lan: { interface: 'eth0', method: 'static', address: '10.0.0.5/24', gateway: '10.9.9.1' },
-      tnc: { interface: 'eth1', method: 'static', address: '192.168.42.1/24' },
+      machine: { interface: 'eth1', method: 'static', address: '192.168.42.1/24' },
     });
 
     expect(() => service().apply('lan', '10.0.0.5')).toThrow(NetworkApplyError);
@@ -157,7 +157,7 @@ describe('apply', () => {
   });
 
   it('surfaces a helper failure rather than reporting success', () => {
-    expect(() => service({ fail: 'nmcli exited 1' }).apply('tnc', '10.0.0.5')).toThrow(
+    expect(() => service({ fail: 'nmcli exited 1' }).apply('machine', '10.0.0.5')).toThrow(
       /nmcli exited 1/,
     );
   });
@@ -169,7 +169,7 @@ describe('apply', () => {
   it('offers no URL for DHCP, rather than guessing one', () => {
     config.set('network', {
       lan: { interface: 'eth0', method: 'dhcp' },
-      tnc: { interface: 'eth1', method: 'static', address: '192.168.42.1/24' },
+      machine: { interface: 'eth1', method: 'static', address: '192.168.42.1/24' },
     });
 
     // Sending the operator to the wrong address at the moment they cannot look one up
@@ -188,7 +188,7 @@ describe('pending', () => {
   });
 
   it('is empty after a change that was never at risk', () => {
-    service().apply('tnc', '10.0.0.5');
+    service().apply('machine', '10.0.0.5');
     expect(service().pending()).toEqual([]);
   });
 

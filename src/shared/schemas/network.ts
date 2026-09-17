@@ -208,7 +208,7 @@ export type NetworkInterfacesResponse = z.infer<typeof networkInterfacesResponse
 // Applying a saved side (see backend/network/apply-service.ts)
 // ---------------------------------------------------------------------------
 
-export const networkSideNameSchema = z.enum(['lan', 'tnc']);
+export const networkSideNameSchema = z.enum(['lan', 'machine']);
 
 /**
  * Which side to apply or confirm.

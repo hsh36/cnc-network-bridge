@@ -3,7 +3,7 @@
  * This module must stay free of Node and backend imports — it is compiled into the frontend.
  */
 
-export const PRODUCT_NAME = 'CNC Network Bridge';
+export const PRODUCT_NAME = 'SMB Bridge';
 
 /**
  * Where updates come from.
@@ -16,7 +16,7 @@ export const PRODUCT_NAME = 'CNC Network Bridge';
  * the one field that can break updating beyond self-repair should not be editable in a
  * web form.
  */
-export const GITHUB_REPO = 'hsh36/cnc-network-bridge';
+export const GITHUB_REPO = 'hsh36/smb-bridge';
 
 /**
  * The one account.
@@ -35,7 +35,7 @@ export const API_BASE_PATH = '/api/v1';
 export const SHARE_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,32}$/;
 
 /** Conflict resolution strategies (IMPLEMENTATION_PLAN §3.1). */
-export const CONFLICT_MODES = ['tnc_wins', 'server_wins', 'last_write_wins'] as const;
+export const CONFLICT_MODES = ['machine_wins', 'server_wins', 'last_write_wins'] as const;
 
 /** Per-share lifecycle states driven by the sync orchestrator (T22). */
 export const SHARE_STATUSES = [
@@ -60,13 +60,13 @@ export const FILE_STATES = [
 ] as const;
 
 /** What caused a lock to be taken (T24). */
-export const LOCK_ORIGINS = ['tnc', 'manual', 'schedule', 'sync'] as const;
+export const LOCK_ORIGINS = ['machine', 'manual', 'schedule', 'sync'] as const;
 
 /** How a lock is projected onto the server share (T26). */
 export const SERVER_LOCK_KINDS = ['none', 'sidecar', 'byte_range'] as const;
 
 /** Prefix for in-flight transfer temp files. Vetoed in smb.conf and excluded from sync. */
-export const TEMP_FILE_PREFIX = '.tnc-tmp-';
+export const TEMP_FILE_PREFIX = '.smb-tmp-';
 
 /**
  * Returned in place of any secret value by the API, and accepted on write to mean

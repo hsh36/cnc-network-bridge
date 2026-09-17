@@ -40,9 +40,9 @@ function toForm(share: LoadedShare): ShareForm {
     smbPassword: '',
     smbVersion: share.smbVersion,
     smbSeal: share.smbSeal,
-    tncGuestOk: share.tncGuestOk,
-    tncUser: share.tncUser ?? '',
-    tncPassword: '',
+    machineGuestOk: share.machineGuestOk,
+    machineUser: share.machineUser ?? '',
+    machinePassword: '',
     conflictMode: share.conflictMode,
     excludePatterns: share.excludePatterns.join('\n'),
     bandwidthLimitKbps: share.bandwidthLimitKbps,
@@ -116,9 +116,9 @@ export function ShareEdit({ shareId, onClose, onRefresh }: ShareEditProps): JSX.
         ...(form.smbPassword === '' ? {} : { smbPassword: form.smbPassword }),
         smbVersion: form.smbVersion,
         smbSeal: form.smbSeal,
-        tncGuestOk: form.tncGuestOk,
-        tncUser: form.tncUser.trim() === '' ? null : form.tncUser.trim(),
-        ...(form.tncPassword === '' ? {} : { tncPassword: form.tncPassword }),
+        machineGuestOk: form.machineGuestOk,
+        machineUser: form.machineUser.trim() === '' ? null : form.machineUser.trim(),
+        ...(form.machinePassword === '' ? {} : { machinePassword: form.machinePassword }),
         conflictMode: form.conflictMode,
         excludePatterns: patterns,
         bandwidthLimitKbps: form.bandwidthLimitKbps,
@@ -189,7 +189,7 @@ export function ShareEdit({ shareId, onClose, onRefresh }: ShareEditProps): JSX.
                 onChange={(e) => setForm({ ...form, conflictMode: e.target.value as ConflictMode })}
               >
                 <option value="last_write_wins">Last Write Wins</option>
-                <option value="tnc_wins">TNC Wins</option>
+                <option value="machine_wins">TNC Wins</option>
                 <option value="server_wins">Server Wins</option>
               </Select>
               <Checkbox

@@ -15,9 +15,9 @@
 
 set -uo pipefail
 
-STATE_DIR="${TNC_STATE_DIR:-/var/lib/tnc-bridge}"
+STATE_DIR="${SMB_STATE_DIR:-/var/lib/smb-bridge}"
 STATUS_FILE="${STATE_DIR}/os-update-status.json"
-SERVICE_USER="${TNC_SERVICE_USER:-tncbridge}"
+SERVICE_USER="${SMB_SERVICE_USER:-smbbridge}"
 LOG_FILE="${STATE_DIR}/os-update.log"
 
 REBOOT=no

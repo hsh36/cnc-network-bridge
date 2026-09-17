@@ -13,14 +13,14 @@ export interface ActiveLocksTableProps {
 }
 
 const ORIGIN_TONE: Record<Lock['origin'], BadgeTone> = {
-  tnc: 'ok',
+  machine: 'ok',
   manual: 'accent',
   schedule: 'warn',
   sync: 'idle',
 };
 
 const ORIGIN_LABEL: Record<Lock['origin'], string> = {
-  tnc: 'Machine',
+  machine: 'Machine',
   manual: 'Manual',
   schedule: 'Schedule',
   sync: 'Sync',
@@ -115,7 +115,7 @@ export function ActiveLocksTable({
     {
       key: 'owner',
       header: 'Locked By',
-      render: ({ lock }) => <span>{lock.ownerLabel ?? lock.tncIp ?? '(unknown)'}</span>,
+      render: ({ lock }) => <span>{lock.ownerLabel ?? lock.machineIp ?? '(unknown)'}</span>,
     },
     {
       key: 'origin',

@@ -34,7 +34,7 @@ function buildContext(): AppContext {
   return {
     db,
     config,
-    // Without an explicit writer this reaches for /var/log/tnc-bridge, which the
+    // Without an explicit writer this reaches for /var/log/smb-bridge, which the
     // constructor creates eagerly — fine as root, EACCES on a CI runner.
     auth: new AuthManager({ db, config, authLog: new AuthLogWriter(`${tmpDir()}/auth.log`) }),
     locks: new LockManager({ db, config }),
@@ -90,8 +90,8 @@ describe('POST /shares', () => {
     // Letting a client choose these would hand it the mount and cache namespaces.
     expect(res.body.data).toMatchObject({
       name: 'programs',
-      mountPoint: '/mnt/tnc-server/programs',
-      cachePath: '/srv/tnc/programs',
+      mountPoint: '/mnt/smb-server/programs',
+      cachePath: '/srv/smb-bridge/programs',
       enabled: true,
       smbVersion: '3.1.1',
     });
@@ -174,12 +174,12 @@ describe('PATCH /shares/:id', () => {
     const res = await agent
       .patch(`/api/v1/shares/${String(id)}`)
       .set('x-csrf-token', csrf)
-      .send({ readOnly: true, conflictMode: 'tnc_wins' })
+      .send({ readOnly: true, conflictMode: 'machine_wins' })
       .expect(200);
 
     expect(res.body.data).toMatchObject({
       readOnly: true,
-      conflictMode: 'tnc_wins',
+      conflictMode: 'machine_wins',
       // Untouched fields keep their values rather than reverting to defaults.
       serverUnc: '//fileserver/cnc$/programs',
       smbVersion: '3.1.1',
@@ -354,10 +354,10 @@ describe('TNC-side credentials survive a save', () => {
 
   it('keeps the user set at creation', async () => {
     const { agent, csrf } = await loginAgent();
-    const id = await makeShare(agent, csrf, { tncGuestOk: false, tncUser: 'cnc' });
+    const id = await makeShare(agent, csrf, { machineGuestOk: false, machineUser: 'cnc' });
 
     const res = await agent.get(`/api/v1/shares/${String(id)}`).expect(200);
-    expect((res.body as { data: { tncUser: string | null } }).data.tncUser).toBe('cnc');
+    expect((res.body as { data: { machineUser: string | null } }).data.machineUser).toBe('cnc');
   });
 
   it('keeps a user set by editing an existing share', async () => {
@@ -366,30 +366,30 @@ describe('TNC-side credentials survive a save', () => {
     // the UPDATE statement simply had no assignment for it, so every edit dropped it
     // silently and reported success.
     const { agent, csrf } = await loginAgent();
-    const id = await makeShare(agent, csrf, { tncGuestOk: true });
+    const id = await makeShare(agent, csrf, { machineGuestOk: true });
 
     await agent
       .patch(`/api/v1/shares/${String(id)}`)
       .set('x-csrf-token', csrf)
-      .send({ tncGuestOk: false, tncUser: 'cnc', tncPassword: 'geheim' })
+      .send({ machineGuestOk: false, machineUser: 'cnc', machinePassword: 'geheim' })
       .expect(200);
 
     const res = await agent.get(`/api/v1/shares/${String(id)}`).expect(200);
-    expect((res.body as { data: { tncUser: string | null } }).data.tncUser).toBe('cnc');
+    expect((res.body as { data: { machineUser: string | null } }).data.machineUser).toBe('cnc');
   });
 
   it('lets the user be cleared again', async () => {
     const { agent, csrf } = await loginAgent();
-    const id = await makeShare(agent, csrf, { tncGuestOk: false, tncUser: 'cnc' });
+    const id = await makeShare(agent, csrf, { machineGuestOk: false, machineUser: 'cnc' });
 
     await agent
       .patch(`/api/v1/shares/${String(id)}`)
       .set('x-csrf-token', csrf)
-      .send({ tncGuestOk: true, tncUser: null })
+      .send({ machineGuestOk: true, machineUser: null })
       .expect(200);
 
     const res = await agent.get(`/api/v1/shares/${String(id)}`).expect(200);
-    expect((res.body as { data: { tncUser: string | null } }).data.tncUser).toBeNull();
+    expect((res.body as { data: { machineUser: string | null } }).data.machineUser).toBeNull();
   });
 
   it('never returns the TNC password', async () => {
@@ -397,9 +397,9 @@ describe('TNC-side credentials survive a save', () => {
     // know whether one is stored, never what it is.
     const { agent, csrf } = await loginAgent();
     const id = await makeShare(agent, csrf, {
-      tncGuestOk: false,
-      tncUser: 'cnc',
-      tncPassword: 'geheim',
+      machineGuestOk: false,
+      machineUser: 'cnc',
+      machinePassword: 'geheim',
     });
 
     const res = await agent.get(`/api/v1/shares/${String(id)}`).expect(200);

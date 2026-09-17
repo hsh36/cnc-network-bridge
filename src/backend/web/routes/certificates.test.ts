@@ -51,7 +51,7 @@ function buildContext(): AppContext {
   return {
     db,
     config,
-    // Without an explicit writer this reaches for /var/log/tnc-bridge, which the
+    // Without an explicit writer this reaches for /var/log/smb-bridge, which the
     // constructor creates eagerly — fine as root, EACCES on a CI runner.
     auth: new AuthManager({ db, config, authLog: new AuthLogWriter(`${tmpDir()}/auth.log`) }),
     locks: new LockManager({ db, config }),
@@ -143,7 +143,7 @@ describe('GET /certificates/download', () => {
 
     const res = await agent.get('/api/v1/certificates/download').expect(200);
 
-    expect(res.headers['content-disposition']).toContain('tnc-bridge-cert.pem');
+    expect(res.headers['content-disposition']).toContain('smb-bridge-cert.pem');
     expect(res.text).toContain('BEGIN CERTIFICATE');
   });
 

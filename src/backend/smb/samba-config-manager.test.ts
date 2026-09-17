@@ -48,9 +48,9 @@ function addShare(name: string, overrides: Record<string, unknown> = {}): void {
     maxFileSizeMb: 100,
     // Reachable by default, so a test that does not care about access control still
     // gets an exported share. The ones that do care override it.
-    tncGuestOk: true,
-    tncUser: null,
-    tncPassword: '',
+    machineGuestOk: true,
+    machineUser: null,
+    machinePassword: '',
     ...overrides,
   } as never);
 }
@@ -108,15 +108,15 @@ describe('reconcile', () => {
 
     manager().reconcile();
 
-    expect(written()).toContain('/srv/tnc/werkstatt');
-    expect(written()).not.toContain('/mnt/tnc-server/werkstatt');
+    expect(written()).toContain('/srv/smb-bridge/werkstatt');
+    expect(written()).not.toContain('/mnt/smb-server/werkstatt');
   });
 
   it('binds smbd to the TNC interface and never to the LAN one', () => {
     config.set('network', {
       ...config.get('network'),
       lan: { ...config.get('network').lan, interface: 'eth0' },
-      tnc: { ...config.get('network').tnc, interface: 'eth1' },
+      machine: { ...config.get('network').machine, interface: 'eth1' },
     });
 
     manager().reconcile();
@@ -128,7 +128,7 @@ describe('reconcile', () => {
   it('names the server what the TNC side is called, not what the host is called', () => {
     config.set('network', {
       ...config.get('network'),
-      tnc: { ...config.get('network').tnc, hostname: 'CNC-BRIDGE' },
+      machine: { ...config.get('network').machine, hostname: 'CNC-BRIDGE' },
     });
 
     manager().reconcile();
@@ -139,7 +139,7 @@ describe('reconcile', () => {
   it('carries the protocol range and workgroup from the smb section', () => {
     config.set('smb', {
       ...config.get('smb'),
-      tnc: { ...config.get('smb').tnc, workgroup: 'WERKSTATT', maxProtocol: 'SMB2' },
+      machine: { ...config.get('smb').machine, workgroup: 'WERKSTATT', maxProtocol: 'SMB2' },
     });
 
     manager().reconcile();
@@ -181,7 +181,7 @@ describe('reconcile', () => {
 
     config.set('network', {
       ...config.get('network'),
-      tnc: { ...config.get('network').tnc, interface: 'eth2' },
+      machine: { ...config.get('network').machine, interface: 'eth2' },
     });
 
     // Otherwise a TNC-side NIC change leaves smbd bound to a card nothing arrives on.
@@ -196,7 +196,7 @@ describe('reconcile', () => {
 
     config.set('smb', {
       ...config.get('smb'),
-      tnc: { ...config.get('smb').tnc, workgroup: 'NEUWERK' },
+      machine: { ...config.get('smb').machine, workgroup: 'NEUWERK' },
     });
 
     expect(written()).toMatch(/workgroup\s*=\s*NEUWERK/);
@@ -291,7 +291,7 @@ describe('TNC-side accounts', () => {
       .map((r) => r as { username: string; remove: boolean });
 
   it('creates the account a share authenticates against', () => {
-    addShare('werkstatt', { tncGuestOk: false, tncUser: 'cnc', tncPassword: 'geheim' });
+    addShare('werkstatt', { machineGuestOk: false, machineUser: 'cnc', machinePassword: 'geheim' });
 
     manager().reconcile();
 
@@ -301,7 +301,7 @@ describe('TNC-side accounts', () => {
   });
 
   it('names the account in valid users, so the share actually requires it', () => {
-    addShare('werkstatt', { tncGuestOk: false, tncUser: 'cnc', tncPassword: 'geheim' });
+    addShare('werkstatt', { machineGuestOk: false, machineUser: 'cnc', machinePassword: 'geheim' });
 
     manager().reconcile();
 
@@ -311,7 +311,7 @@ describe('TNC-side accounts', () => {
   it('does not name an account on a guest share', () => {
     // `valid users` alongside `guest ok = yes` is a contradiction Samba resolves in
     // favour of the guest, which would make the account silently decorative.
-    addShare('werkstatt', { tncGuestOk: true, tncUser: 'cnc', tncPassword: 'geheim' });
+    addShare('werkstatt', { machineGuestOk: true, machineUser: 'cnc', machinePassword: 'geheim' });
 
     manager().reconcile();
 
@@ -323,7 +323,7 @@ describe('TNC-side accounts', () => {
     // Guest off and no account. Exporting it means the control gets ACCESS_DENIED,
     // which reads as a password problem and sends the operator looking for credentials
     // that do not exist. Found on real hardware, where exactly this share existed.
-    addShare('werkstatt', { tncGuestOk: false, tncUser: null });
+    addShare('werkstatt', { machineGuestOk: false, machineUser: null });
 
     manager().reconcile();
 
@@ -331,8 +331,8 @@ describe('TNC-side accounts', () => {
   });
 
   it('exports the other shares even when one is unreachable', () => {
-    addShare('kaputt', { tncGuestOk: false, tncUser: null });
-    addShare('werkstatt', { tncGuestOk: true });
+    addShare('kaputt', { machineGuestOk: false, machineUser: null });
+    addShare('werkstatt', { machineGuestOk: true });
 
     manager().reconcile();
 
@@ -341,7 +341,7 @@ describe('TNC-side accounts', () => {
   });
 
   it('removes the account when a share switches to guest access', () => {
-    addShare('werkstatt', { tncGuestOk: true });
+    addShare('werkstatt', { machineGuestOk: true });
 
     manager().reconcile();
 
@@ -353,7 +353,7 @@ describe('TNC-side accounts', () => {
   it('removes the account of a disabled share', () => {
     // The share is not exported, so an account that can still authenticate against the
     // appliance is a credential with nothing behind it.
-    addShare('werkstatt', { enabled: false, tncGuestOk: false, tncUser: 'cnc' });
+    addShare('werkstatt', { enabled: false, machineGuestOk: false, machineUser: 'cnc' });
 
     manager().reconcile();
 
@@ -364,7 +364,7 @@ describe('TNC-side accounts', () => {
 
   it('creates no account for a share that names a user but stored no password', () => {
     // An account nobody can log into is less use than a logged warning.
-    addShare('werkstatt', { tncGuestOk: false, tncUser: 'cnc' });
+    addShare('werkstatt', { machineGuestOk: false, machineUser: 'cnc' });
 
     manager().reconcile();
 
@@ -373,7 +373,7 @@ describe('TNC-side accounts', () => {
 
   it("writes the config even when one share's account could not be set", () => {
     // A partial bridge is worth more than none, and the failure is on the record.
-    addShare('werkstatt', { tncGuestOk: false, tncUser: 'cnc', tncPassword: 'geheim' });
+    addShare('werkstatt', { machineGuestOk: false, machineUser: 'cnc', machinePassword: 'geheim' });
     const samba = new SambaConfigManager({
       db,
       config,
@@ -394,10 +394,14 @@ describe('TNC-side accounts', () => {
     // One reaches the corporate server, one lets a shop-floor control in. Storing them
     // under the same label would let an envelope be moved between the columns.
     const store = new ShareStore({ db, config });
-    addShare('werkstatt', { tncGuestOk: false, tncUser: 'cnc', tncPassword: 'tnc-secret' });
+    addShare('werkstatt', {
+      machineGuestOk: false,
+      machineUser: 'cnc',
+      machinePassword: 'tnc-secret',
+    });
     const id = store.list(10, 0).items[0]!.id;
 
-    expect(store.tncPassword(id)).toBe('tnc-secret');
+    expect(store.machinePassword(id)).toBe('tnc-secret');
     expect(store.password(id)).toBeUndefined();
   });
 });

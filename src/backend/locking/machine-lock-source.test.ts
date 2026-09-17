@@ -10,16 +10,16 @@ import { type AuditEvent } from '../smb/audit-syslog';
 import { type SmbOpenFile, type SmbSession, type SmbStatus } from '../smb/samba-service';
 
 import { LockManager } from './lock-manager';
-import { TncLockSource } from './tnc-lock-source';
+import { MachineLockSource } from './machine-lock-source';
 
 let db: Db;
 let config: ConfigManager;
 let locks: LockManager;
-let source: TncLockSource;
+let source: MachineLockSource;
 let shareId: number;
 
 /** The export root smbd serves and logs against, as install.sh lays it out. */
-const CACHE_PATH = '/srv/tnc/test';
+const CACHE_PATH = '/srv/smb-bridge/test';
 
 function insertShare(name = 'test', enabled = 1): number {
   const now = 1_700_000_000;
@@ -30,7 +30,7 @@ function insertShare(name = 'test', enabled = 1): number {
       name,
       unc: `//fileserver/cnc$/${name}`,
       mount: posix.join('/mnt/tnc', name),
-      cache: posix.join('/srv/tnc', name),
+      cache: posix.join('/srv/smb-bridge', name),
       enabled,
       now,
     },
@@ -103,7 +103,7 @@ beforeEach(() => {
   // a failed projection does not muddy what these tests are about.
   mkdirSync(join(tmpDir(), 'mount'), { recursive: true });
   locks = new LockManager({ db, config });
-  source = new TncLockSource({ db, config, locks });
+  source = new MachineLockSource({ db, config, locks });
   shareId = insertShare();
 });
 
@@ -120,7 +120,11 @@ describe('handleEvent', () => {
     source.handleEvent(event());
 
     const lock = locks.getActive(shareId, '10.H');
-    expect(lock).toMatchObject({ origin: 'tnc', tncIp: '172.16.37.42', ownerLabel: 'tnc-test' });
+    expect(lock).toMatchObject({
+      origin: 'machine',
+      machineIp: '172.16.37.42',
+      ownerLabel: 'tnc-test',
+    });
   });
 
   it('does not lock a read open', () => {
@@ -165,8 +169,8 @@ describe('handleEvent', () => {
 
   it.each([
     ['our own sidecar', '.~lock.10.H#'],
-    ['an in-flight transfer temp file', '.tnc-tmp-abc123'],
-    ['a reachability probe', '.tnc-bridge-probe-1'],
+    ['an in-flight transfer temp file', '.smb-tmp-abc123'],
+    ['a reachability probe', '.smb-bridge-probe-1'],
     ['the version store', '.tnc-versions/10.H/1'],
     ["Samba's mkdir scratch name", '.::TMPNAME:D:83032%15382:neu'],
   ])('ignores %s', (_label, path) => {
@@ -200,9 +204,9 @@ describe('reconcile', () => {
 
     expect(result).toMatchObject({ acquired: 1, released: 0, skipped: false });
     expect(locks.getActive(shareId, '10.H')).toMatchObject({
-      origin: 'tnc',
+      origin: 'machine',
       // Attributed through the pid → session lookup, not left anonymous.
-      tncIp: '172.16.37.42',
+      machineIp: '172.16.37.42',
     });
   });
 
@@ -236,7 +240,7 @@ describe('reconcile', () => {
       status({
         openFiles: [
           openFile({ rw: 'RDONLY' }),
-          openFile({ sharePath: '/srv/tnc/andere', filename: 'fremd.H' }),
+          openFile({ sharePath: '/srv/smb-bridge/andere', filename: 'fremd.H' }),
         ],
       }),
     );

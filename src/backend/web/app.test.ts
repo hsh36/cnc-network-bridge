@@ -239,16 +239,16 @@ describe('status reports what the appliance actually knows', () => {
       `INSERT INTO shares (name, enabled, server_unc, mount_point, cache_path,
                            smb_domain, smb_user, smb_version, smb_seal, conflict_mode,
                            exclude_patterns, scan_interval_ms, bandwidth_limit_kbps,
-                           max_file_size_mb, read_only, failover_read_only, tnc_guest_ok,
-                           tnc_user, status, last_scan_at, last_error, created_at, updated_at)
+                           max_file_size_mb, read_only, failover_read_only, machine_guest_ok,
+                           machine_user, status, last_scan_at, last_error, created_at, updated_at)
        VALUES (@name, 1, @unc, @mount, @cache, NULL, NULL, '3.1.1', 1, 'last_write_wins',
                '[]', 15000, NULL, 512, 0, 0, 0, NULL, @status, NULL, @lastError,
                unixepoch(), unixepoch())`,
       {
         name,
         unc: `//fileserver/${name}`,
-        mount: `/mnt/tnc-server/${name}`,
-        cache: `/srv/tnc/${name}`,
+        mount: `/mnt/smb-server/${name}`,
+        cache: `/srv/smb-bridge/${name}`,
         status,
         lastError,
       },

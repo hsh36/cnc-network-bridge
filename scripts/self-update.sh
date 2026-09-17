@@ -3,7 +3,7 @@
 # Update the bridge to a given git ref, and put it back if the result does not come up.
 #
 # Run as root by the privileged helper, inside a transient systemd unit — never as a
-# child of the service. The last thing this script does is restart tnc-bridge, which
+# child of the service. The last thing this script does is restart smb-bridge, which
 # kills anything descended from it, so a script running under the service would be
 # killed in the middle of the switch and leave a half-built tree behind.
 #
@@ -16,14 +16,14 @@
 
 set -uo pipefail
 
-INSTALL_DIR="${TNC_INSTALL_DIR:-/opt/tnc-bridge}"
-STATE_DIR="${TNC_STATE_DIR:-/var/lib/tnc-bridge}"
+INSTALL_DIR="${SMB_INSTALL_DIR:-/opt/smb-bridge}"
+STATE_DIR="${SMB_STATE_DIR:-/var/lib/smb-bridge}"
 STATUS_FILE="${STATE_DIR}/update-status.json"
-SERVICE_NAME="${TNC_SERVICE_NAME:-tnc-bridge}"
-SERVICE_USER="${TNC_SERVICE_USER:-tncbridge}"
-SERVICE_GROUP="${TNC_SERVICE_GROUP:-tncbridge}"
-HEALTH_URL="${TNC_HEALTH_URL:-https://127.0.0.1/api/v1/health}"
-HEALTH_TIMEOUT="${TNC_HEALTH_TIMEOUT:-120}"
+SERVICE_NAME="${SMB_SERVICE_NAME:-smb-bridge}"
+SERVICE_USER="${SMB_SERVICE_USER:-smbbridge}"
+SERVICE_GROUP="${SMB_SERVICE_GROUP:-smbbridge}"
+HEALTH_URL="${SMB_HEALTH_URL:-https://127.0.0.1/api/v1/health}"
+HEALTH_TIMEOUT="${SMB_HEALTH_TIMEOUT:-120}"
 
 TARGET_REF="${1:-}"
 # Whether a rollback is wanted at all. Empty means no — the very first update on a
@@ -41,7 +41,7 @@ ROLLBACK_WANTED="${2:-}"
 # place that knows it.
 PREVIOUS_REF=""
 if [ -n "$ROLLBACK_WANTED" ]; then
-  PREVIOUS_REF="$(git -C "${TNC_INSTALL_DIR:-/opt/tnc-bridge}" rev-parse HEAD 2>/dev/null || true)"
+  PREVIOUS_REF="$(git -C "${SMB_INSTALL_DIR:-/opt/smb-bridge}" rev-parse HEAD 2>/dev/null || true)"
 fi
 
 [ -n "$TARGET_REF" ] || {

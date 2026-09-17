@@ -159,9 +159,9 @@ describe('the walk', () => {
 
   it('excludes the transfer temporaries the executor writes', async () => {
     file('part1.h');
-    file('.tnc-tmp-abc123');
+    file('.smb-tmp-abc123');
 
-    const { entries } = await walkAll(walker, { root, excludes: ['**/.tnc-tmp-*'] });
+    const { entries } = await walkAll(walker, { root, excludes: ['**/.smb-tmp-*'] });
 
     expect(paths(entries)).toEqual(['part1.h']);
   });

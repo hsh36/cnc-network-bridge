@@ -96,7 +96,7 @@ jobs:
       - name: Create the tarball
         run: |
           set -euo pipefail
-          tarball="cnc-network-bridge-${VERSION}.tar.gz"
+          tarball="smb-bridge-${VERSION}.tar.gz"
           # Deterministic ordering and no owner metadata, so an identical tree yields
           # an identical archive and the checksum is meaningful.
           tar --sort=name --owner=0 --group=0 --numeric-owner \

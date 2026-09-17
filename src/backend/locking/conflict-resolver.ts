@@ -131,7 +131,7 @@ export function decideWinner(
     return 'local';
   }
   switch (mode) {
-    case 'tnc_wins':
+    case 'machine_wins':
       return 'local';
     case 'server_wins':
       return 'remote';

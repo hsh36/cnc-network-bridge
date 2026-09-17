@@ -71,8 +71,8 @@ export function managementGuard(
       return;
     }
 
-    const tncInterface = ctx.config.get('network').tnc.interface;
-    if (!addressesOf(tncInterface, read).has(local)) {
+    const machineInterface = ctx.config.get('network').machine.interface;
+    if (!addressesOf(machineInterface, read).has(local)) {
       next();
       return;
     }
@@ -81,7 +81,7 @@ export function managementGuard(
       actor: 'unknown',
       action: 'management.access',
       target: `${req.method} ${req.path}`,
-      detail: `request arrived on ${tncInterface} (${local}); management is LAN-only`,
+      detail: `request arrived on ${machineInterface} (${local}); management is LAN-only`,
       ...(req.ip === undefined ? {} : { ip: req.ip }),
     });
 

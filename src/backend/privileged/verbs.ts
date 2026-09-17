@@ -51,18 +51,18 @@ export const isPrivilegedVerb = (value: string): value is PrivilegedVerb => VERB
 // ---------------------------------------------------------------------------
 
 export const ROOTS = {
-  mount: '/mnt/tnc-server',
-  cache: '/srv/tnc',
+  mount: '/mnt/smb-server',
+  cache: '/srv/smb-bridge',
   sambaConfig: '/etc/samba',
   dnsmasqConfig: '/etc/dnsmasq.d',
   nftConfig: '/etc/nftables.d',
-  tls: '/etc/tnc-bridge/tls',
-  releases: '/opt/tnc-bridge/releases',
+  tls: '/etc/smb-bridge/tls',
+  releases: '/opt/smb-bridge/releases',
 } as const;
 
 /** systemd units the helper may act on. Anything else is refused. */
 export const ALLOWED_SERVICES = [
-  'tnc-bridge',
+  'smb-bridge',
   'smbd',
   'nmbd',
   'dnsmasq',
@@ -206,7 +206,7 @@ export function validateServerUnc(verb: string, value: unknown): string {
  * Canonicalises a path and proves it stays inside `root`.
  *
  * Two checks, because they catch different things. `resolve()` collapses `..`, which
- * defeats `/mnt/tnc-server/../../etc/shadow`. `realpathSync()` follows symlinks, which
+ * defeats `/mnt/smb-server/../../etc/shadow`. `realpathSync()` follows symlinks, which
  * defeats a symlink planted inside the root pointing at `/etc` — an attacker who can
  * write into the cache directory can create one, and without this check the helper
  * would happily follow it as root.
@@ -386,7 +386,7 @@ export interface ApplyUpdateRequest {
  * would be a check that always passes.
  *
  * The work runs in a transient systemd unit, not as a child of this helper, because the
- * last step restarts `tnc-bridge` and would otherwise kill the updater mid-build.
+ * last step restarts `smb-bridge` and would otherwise kill the updater mid-build.
  */
 export interface SelfUpdateRequest {
   readonly verb: 'self-update';
@@ -641,7 +641,7 @@ export function validateRequest(raw: unknown, options: ValidateOptions = {}): Pr
       return {
         verb,
         ip: validateIpAddress(verb, input.ip),
-        jail: validateJail(verb, input.jail ?? 'tnc-bridge'),
+        jail: validateJail(verb, input.jail ?? 'smb-bridge'),
       };
 
     case 'install-cert': {

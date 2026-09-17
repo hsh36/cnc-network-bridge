@@ -243,7 +243,7 @@ export interface SmbOpenFile {
   readonly access: string | null;
   readonly rw: string | null;
   readonly oplock: string | null;
-  /** Export root of the share, e.g. `/srv/tnc/programs`. */
+  /** Export root of the share, e.g. `/srv/smb-bridge/programs`. */
   readonly sharePath: string | null;
   /** Path relative to `sharePath`, or the raw name when the share path is unknown. */
   readonly filename: string;
@@ -531,7 +531,7 @@ export interface SambaServiceOptions {
  * A {@link ServiceRunner} that reads `smbstatus` through the privileged helper.
  *
  * `smbstatus` opens Samba's tdb files directly and exits with "smbstatus only works as
- * root!" for anyone else — and this service runs as `tncbridge`. Calling it directly
+ * root!" for anyone else — and this service runs as `smbbridge`. Calling it directly
  * therefore fails on the appliance in exactly the way that looks like success: an empty
  * status, read as "no machine has anything open".
  *

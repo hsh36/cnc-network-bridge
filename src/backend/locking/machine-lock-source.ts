@@ -34,8 +34,8 @@ import { LockHeldError, type LockManager } from './lock-manager';
 /** Written by Samba or by the bridge itself; never a program a control is editing. */
 const IGNORED_PATH_PATTERNS = [
   /(^|\/)\.~lock\..*#$/, // our own sidecar projection
-  /(^|\/)\.tnc-tmp-/, // in-flight transfer temp files
-  /(^|\/)\.tnc-bridge-probe/, // reachability probes
+  /(^|\/)\.smb-tmp-/, // in-flight transfer temp files
+  /(^|\/)\.smb-bridge-probe/, // reachability probes
   /(^|\/)\.tnc-versions(\/|$)/, // the local version store
   /(^|\/)\.::TMPNAME:/, // Samba's own mkdir-then-rename scratch name
 ];
@@ -55,7 +55,7 @@ const RELEASING_OPERATIONS: ReadonlySet<AuditOperation> = new Set<AuditOperation
   'rename',
 ]);
 
-export interface TncLockSourceOptions {
+export interface MachineLockSourceOptions {
   readonly db: Db;
   readonly config: ConfigManager;
   readonly locks: LockManager;
@@ -69,12 +69,12 @@ export interface ReconcileResult {
   readonly skipped: boolean;
 }
 
-export class TncLockSource {
+export class MachineLockSource {
   private readonly locks: LockManager;
   private readonly logger: DbLogger | undefined;
   private readonly shares: ShareStore;
 
-  constructor(options: TncLockSourceOptions) {
+  constructor(options: MachineLockSourceOptions) {
     this.locks = options.locks;
     this.logger = options.logger;
     this.shares = new ShareStore({ db: options.db, config: options.config });
@@ -183,16 +183,16 @@ export class TncLockSource {
   private acquire(
     shareId: number,
     relPath: string,
-    tncIp: string | null,
+    machineIp: string | null,
     user: string | null,
   ): boolean {
     try {
       this.locks.acquire({
         shareId,
         relPath,
-        origin: 'tnc',
+        origin: 'machine',
         ownerLabel: user,
-        tncIp,
+        machineIp,
         note: 'opened on a machine',
       });
       return true;
@@ -212,14 +212,14 @@ export class TncLockSource {
     }
   }
 
-  private releaseIfHeldByMachine(shareId: number, relPath: string, tncIp: string | null): void {
+  private releaseIfHeldByMachine(shareId: number, relPath: string, machineIp: string | null): void {
     const lock = this.locks.getActive(shareId, relPath);
-    if (lock?.origin !== 'tnc') {
+    if (lock?.origin !== 'machine') {
       return;
     }
     // A close from a different machine than the one holding the lock is not a release.
     // Two controls with the same program open is precisely the case the table exists for.
-    if (tncIp !== null && lock.tncIp !== null && lock.tncIp !== tncIp) {
+    if (machineIp !== null && lock.machineIp !== null && lock.machineIp !== machineIp) {
       return;
     }
     this.release(lock, 'closed on the machine');
@@ -239,7 +239,7 @@ export class TncLockSource {
   private activeMachineLocks(shareId: number): Lock[] {
     return this.locks.list({
       share: shareId,
-      origin: 'tnc',
+      origin: 'machine',
       includeReleased: false,
       limit: MAX_RECONCILE_ROWS,
       offset: 0,

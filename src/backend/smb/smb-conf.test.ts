@@ -14,9 +14,9 @@ import {
 } from './smb-conf';
 
 const BASE: SmbConfInput = {
-  tncInterface: 'eth1',
+  machineInterface: 'eth1',
   lanInterface: 'eth0',
-  shares: [{ name: 'programs', path: '/srv/tnc/programs' }],
+  shares: [{ name: 'programs', path: '/srv/smb-bridge/programs' }],
 };
 
 const build = (overrides: Partial<SmbConfInput> = {}): string =>
@@ -119,7 +119,7 @@ describe('renderSmbConf', () => {
 
   it('accepts extra veto patterns per share', () => {
     const content = build({
-      shares: [{ name: 'programs', path: '/srv/tnc/programs', extraVetoFiles: ['*.bak'] }],
+      shares: [{ name: 'programs', path: '/srv/smb-bridge/programs', extraVetoFiles: ['*.bak'] }],
     });
     expect(content).toContain('*.bak');
   });
@@ -127,14 +127,14 @@ describe('renderSmbConf', () => {
   it('renders one section per share', () => {
     const content = build({
       shares: [
-        { name: 'programs', path: '/srv/tnc/programs' },
-        { name: 'tools', path: '/srv/tnc/tools' },
+        { name: 'programs', path: '/srv/smb-bridge/programs' },
+        { name: 'tools', path: '/srv/smb-bridge/tools' },
       ],
     });
     expect(content).toContain('[programs]');
     expect(content).toContain('[tools]');
-    expect(content).toContain('path = /srv/tnc/programs');
-    expect(content).toContain('path = /srv/tnc/tools');
+    expect(content).toContain('path = /srv/smb-bridge/programs');
+    expect(content).toContain('path = /srv/smb-bridge/tools');
   });
 
   it('marks a share read-only when the failover controller says so', () => {
@@ -145,8 +145,8 @@ describe('renderSmbConf', () => {
   it('marks a single share read-only without affecting the others', () => {
     const content = build({
       shares: [
-        { name: 'programs', path: '/srv/tnc/programs', readOnly: true },
-        { name: 'tools', path: '/srv/tnc/tools' },
+        { name: 'programs', path: '/srv/smb-bridge/programs', readOnly: true },
+        { name: 'tools', path: '/srv/smb-bridge/tools' },
       ],
     });
     const programs = content.slice(content.indexOf('[programs]'), content.indexOf('[tools]'));
@@ -158,16 +158,18 @@ describe('renderSmbConf', () => {
   it('emits valid users only when the list is non-empty', () => {
     expect(build()).not.toContain('valid users');
     const content = build({
-      shares: [{ name: 'programs', path: '/srv/tnc/programs', validUsers: ['tnc', 'ops'] }],
+      shares: [
+        { name: 'programs', path: '/srv/smb-bridge/programs', validUsers: ['machine', 'ops'] },
+      ],
     });
-    expect(content).toContain('valid users = tnc ops');
+    expect(content).toContain('valid users = machine ops');
   });
 
   it('produces a safely-bound config even with no shares configured yet', () => {
     // The wizard must be able to finish before any share exists.
     const content = build({ shares: [] });
     expect(content).toContain('bind interfaces only = yes');
-    expect(() => assertSafeConfig(content, { tncInterface: 'eth1' })).not.toThrow();
+    expect(() => assertSafeConfig(content, { machineInterface: 'eth1' })).not.toThrow();
   });
 });
 
@@ -196,7 +198,7 @@ describe('injection resistance', () => {
         shares: [
           {
             name: 'programs',
-            path: '/srv/tnc/programs',
+            path: '/srv/smb-bridge/programs',
             comment: 'nice\n  interfaces = eth0 eth1',
           },
         ],
@@ -224,7 +226,7 @@ describe('injection resistance', () => {
 
 describe('input validation', () => {
   it('rejects a share name outside the allowed pattern', () => {
-    expect(() => build({ shares: [{ name: 'bad name!', path: '/srv/tnc/x' }] })).toThrow(
+    expect(() => build({ shares: [{ name: 'bad name!', path: '/srv/smb-bridge/x' }] })).toThrow(
       /share name/,
     );
   });
@@ -235,7 +237,7 @@ describe('input validation', () => {
   });
 
   it('rejects a traversal segment in a share path', () => {
-    expect(() => build({ shares: [{ name: 'x', path: '/srv/tnc/../../etc' }] })).toThrow(
+    expect(() => build({ shares: [{ name: 'x', path: '/srv/smb-bridge/../../etc' }] })).toThrow(
       SmbConfError,
     );
   });
@@ -245,8 +247,8 @@ describe('input validation', () => {
     expect(() =>
       build({
         shares: [
-          { name: 'programs', path: '/srv/tnc/programs' },
-          { name: 'PROGRAMS', path: '/srv/tnc/other' },
+          { name: 'programs', path: '/srv/smb-bridge/programs' },
+          { name: 'PROGRAMS', path: '/srv/smb-bridge/other' },
         ],
       }),
     ).toThrow(/duplicate/);
@@ -279,7 +281,7 @@ describe('parseSmbConf', () => {
   });
 
   it('lower-cases section names', () => {
-    const parsed = parseSmbConf('[Programs]\n path = /srv/tnc/programs\n');
+    const parsed = parseSmbConf('[Programs]\n path = /srv/smb-bridge/programs\n');
     expect(parsed.sections.has('programs')).toBe(true);
   });
 });
@@ -289,7 +291,7 @@ describe('parseSmbConf', () => {
 // ---------------------------------------------------------------------------
 
 describe('assertSafeConfig', () => {
-  const options = { tncInterface: 'eth1', lanInterface: 'eth0' };
+  const options = { machineInterface: 'eth1', lanInterface: 'eth0' };
 
   it('accepts a config generated by this module', () => {
     expect(() => assertSafeConfig(build(), options)).not.toThrow();
@@ -343,7 +345,7 @@ describe('assertSafeConfig', () => {
   });
 
   it('refuses a share exporting a path outside the cache root', () => {
-    const bad = build().replace('path = /srv/tnc/programs', 'path = /etc');
+    const bad = build().replace('path = /srv/smb-bridge/programs', 'path = /etc');
     expect(() => assertSafeConfig(bad, options)).toThrow(/outside/);
   });
 
@@ -378,7 +380,7 @@ describe('assertSafeConfig', () => {
   it('is enforced by buildSmbConf, so an unsafe config cannot be obtained', () => {
     // renderSmbConf alone can produce anything its input asks for; buildSmbConf is the
     // door everyone else uses, and the assertion is behind it.
-    const rendered = renderSmbConf({ ...BASE, tncInterface: 'eth1' });
+    const rendered = renderSmbConf({ ...BASE, machineInterface: 'eth1' });
     expect(rendered).toContain('interfaces = eth1');
     expect(() => buildSmbConf({ ...BASE, lanInterface: 'eth1' })).toThrow(/LAN interface/);
   });

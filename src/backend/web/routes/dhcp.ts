@@ -69,7 +69,7 @@ export function dhcpRoutes(ctx: AppContext): Router {
    *
    * Returns discovered machines from the TNC network, derived from:
    * - DHCP leases (via dnsmasq)
-   * - Static reservations (from tnc_clients table)
+   * - Static reservations (from machine_clients table)
    * - SMB sessions (future integration with T13)
    */
   router.get('/dhcp/machines', requireSession(ctx), (_req, res, next) => {
@@ -164,14 +164,14 @@ export function dhcpRoutes(ctx: AppContext): Router {
         ctx.db.transaction(() => {
           // Check if this MAC already exists (using COALESCE to handle both old and new column names)
           const existing = ctx.db.get<{ id: number }>(
-            `SELECT id FROM tnc_clients WHERE mac_address = @mac OR mac = @mac`,
+            `SELECT id FROM machine_clients WHERE mac_address = @mac OR mac = @mac`,
             { mac },
           );
 
           if (existing) {
             // Update existing reservation
             ctx.db.run(
-              `UPDATE tnc_clients
+              `UPDATE machine_clients
              SET mac_address = @mac, reserved_ip = @ip, name = @hostname, dhcp_reserved = 1, updated_at = @now
              WHERE mac_address = @mac OR mac = @mac`,
               {
@@ -184,7 +184,7 @@ export function dhcpRoutes(ctx: AppContext): Router {
           } else {
             // Create new reservation (insert with both old and new columns for compatibility)
             ctx.db.run(
-              `INSERT INTO tnc_clients (mac, mac_address, reserved_ip, name, dhcp_reserved, created_at, updated_at)
+              `INSERT INTO machine_clients (mac, mac_address, reserved_ip, name, dhcp_reserved, created_at, updated_at)
              VALUES (@mac, @mac, @ip, @hostname, 1, @now, @now)`,
               {
                 mac,
@@ -227,7 +227,7 @@ export function dhcpRoutes(ctx: AppContext): Router {
         const mac = macAddressSchema.parse(req.params.mac);
 
         ctx.db.run(
-          `UPDATE tnc_clients
+          `UPDATE machine_clients
          SET reserved_ip = NULL, dhcp_reserved = 0, updated_at = @now
          WHERE mac_address = @mac OR mac = @mac`,
           {

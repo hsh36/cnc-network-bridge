@@ -171,8 +171,8 @@ describe('DELETE /locks/:id', () => {
     const lock = ctx.locks.acquire({
       shareId,
       relPath: 'CRASHED.H',
-      origin: 'tnc',
-      tncIp: '172.16.37.42',
+      origin: 'machine',
+      machineIp: '172.16.37.42',
     });
 
     const { agent, csrf } = await loginAgent();
@@ -189,7 +189,7 @@ describe('DELETE /locks/:id', () => {
   it('keeps the released lock in the record rather than deleting the row', async () => {
     // A force-release is an intervention, and the history is the only place it shows.
     const shareId = seedShare();
-    const lock = ctx.locks.acquire({ shareId, relPath: 'CRASHED.H', origin: 'tnc' });
+    const lock = ctx.locks.acquire({ shareId, relPath: 'CRASHED.H', origin: 'machine' });
 
     const { agent, csrf } = await loginAgent();
     await agent
@@ -257,7 +257,7 @@ describe('GET /locks/schedule/preview', () => {
         name: 'test-share',
         unc: '//server/share$',
         mount: '/mnt/test-share',
-        cache: '/srv/tnc/test-share',
+        cache: '/srv/smb-bridge/test-share',
         now: Math.floor(Date.now() / 1000),
       },
     );
@@ -312,7 +312,7 @@ describe('GET /locks/schedule/preview', () => {
         name: 'test-share',
         unc: '//server/share$',
         mount: '/mnt/test-share',
-        cache: '/srv/tnc/test-share',
+        cache: '/srv/smb-bridge/test-share',
         now: Math.floor(Date.now() / 1000),
       },
     );
@@ -342,7 +342,7 @@ describe('GET /locks/schedule/preview', () => {
           name: `share-${i}`,
           unc: `//server/share${i}$`,
           mount: `/mnt/share${i}`,
-          cache: `/srv/tnc/share${i}`,
+          cache: `/srv/smb-bridge/share${i}`,
           now: Math.floor(Date.now() / 1000),
         },
       );

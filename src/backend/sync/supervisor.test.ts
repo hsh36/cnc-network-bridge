@@ -81,9 +81,9 @@ function createShare(name: string, overrides: Record<string, unknown> = {}): num
     scanIntervalMs: 60_000,
     bandwidthLimitKbps: null,
     maxFileSizeMb: 512,
-    tncGuestOk: true,
-    tncUser: null,
-    tncPassword: '',
+    machineGuestOk: true,
+    machineUser: null,
+    machinePassword: '',
     ...overrides,
   });
   // The real paths are /mnt and /srv, which a test cannot create. Point them at a temp
@@ -285,7 +285,7 @@ describe('a share that cannot start', () => {
     const good = createShare('programs');
     const bad = createShare('broken');
     // A mount point that cannot be created, which is what happened on the appliance:
-    // /mnt/tnc-server did not exist and the service account could not make it. A path
+    // /mnt/smb-server did not exist and the service account could not make it. A path
     // *below a file* fails the same way on every platform, unlike an absolute Unix path
     // that Windows would happily create under the drive root.
     const blocker = join(roots, 'not-a-directory');

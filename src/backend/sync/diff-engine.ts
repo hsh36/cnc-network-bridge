@@ -131,7 +131,7 @@ export type VerdictReason =
   | 'case_collision'
   | 'server_offline'
   | 'read_only'
-  | 'locked_by_tnc';
+  | 'locked_by_machine';
 
 /** Which side must be written to the version store before the action runs. */
 export interface VersionCapture {
@@ -581,9 +581,9 @@ function resolveConflict(local: Side, remote: Side, config: DiffConfig, context:
   let tieBroken = false;
   let rationale: string;
 
-  if (mode === 'tnc_wins') {
+  if (mode === 'machine_wins') {
     winner = 'local';
-    rationale = 'conflict mode is tnc_wins';
+    rationale = 'conflict mode is machine_wins';
   } else if (mode === 'server_wins') {
     winner = 'remote';
     rationale = 'conflict mode is server_wins';
@@ -683,7 +683,7 @@ function applyAvailabilityOverrides(input: Verdict, config: DiffConfig): Verdict
     // actively running. The pull is re-queued, not abandoned.
     current = verdict(
       'DEFER',
-      'locked_by_tnc',
+      'locked_by_machine',
       `${current.detail} — deferred because a TNC holds ${config.relPath} open`,
       'deferred_locked',
       { conflict: current.conflict, warnings: current.warnings },

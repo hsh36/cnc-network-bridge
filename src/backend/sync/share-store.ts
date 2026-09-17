@@ -19,9 +19,9 @@ import { type Db, type SqlValue } from '../config/db';
  */
 
 /** Where a share's server export is mounted. Derived, never accepted from a client. */
-export const MOUNT_ROOT = '/mnt/tnc-server';
+export const MOUNT_ROOT = '/mnt/smb-server';
 /** Local cache the TNC side serves from. Matches `PRODUCTION_PATHS.cacheRoot`. */
-export const CACHE_ROOT = '/srv/tnc';
+export const CACHE_ROOT = '/srv/smb-bridge';
 
 export class ShareError extends Error {
   constructor(
@@ -52,9 +52,9 @@ interface ShareRow {
   max_file_size_mb: number;
   read_only: number;
   failover_read_only: number;
-  tnc_guest_ok: number;
-  tnc_user: string | null;
-  tnc_password: string | null;
+  machine_guest_ok: number;
+  machine_user: string | null;
+  machine_password: string | null;
   status: string;
   last_scan_at: number | null;
   last_error: string | null;
@@ -75,8 +75,8 @@ function passwordAad(shareId: number): string {
  * in — and a distinct AAD means an envelope lifted from one column cannot be pasted
  * into the other even with database access.
  */
-function tncPasswordAad(shareId: number): string {
-  return `shares.${String(shareId)}.tncPassword`;
+function machinePasswordAad(shareId: number): string {
+  return `shares.${String(shareId)}.machinePassword`;
 }
 
 /**
@@ -110,8 +110,8 @@ function toShare(row: ShareRow): Share {
     maxFileSizeMb: row.max_file_size_mb,
     readOnly: row.read_only === 1,
     failoverReadOnly: row.failover_read_only === 1,
-    tncGuestOk: row.tnc_guest_ok === 1,
-    tncUser: row.tnc_user,
+    machineGuestOk: row.machine_guest_ok === 1,
+    machineUser: row.machine_user,
     status: row.status as Share['status'],
     lastScanAt: row.last_scan_at,
     lastError: row.last_error,
@@ -171,12 +171,12 @@ export class ShareStore {
          name, enabled, server_unc, mount_point, cache_path,
          smb_domain, smb_user, smb_version, smb_seal, conflict_mode,
          exclude_patterns, scan_interval_ms, bandwidth_limit_kbps, max_file_size_mb,
-         tnc_guest_ok, tnc_user, created_at, updated_at
+         machine_guest_ok, machine_user, created_at, updated_at
        ) VALUES (
          @name, @enabled, @serverUnc, @mountPoint, @cachePath,
          @smbDomain, @smbUser, @smbVersion, @smbSeal, @conflictMode,
          @excludePatterns, @scanIntervalMs, @bandwidthLimitKbps, @maxFileSizeMb,
-         @tncGuestOk, @tncUser, @now, @now
+         @machineGuestOk, @machineUser, @now, @now
        )`,
       {
         name: input.name,
@@ -193,8 +193,8 @@ export class ShareStore {
         scanIntervalMs: input.scanIntervalMs,
         bandwidthLimitKbps: input.bandwidthLimitKbps,
         maxFileSizeMb: input.maxFileSizeMb,
-        tncGuestOk: input.tncGuestOk ? 1 : 0,
-        tncUser: input.tncUser,
+        machineGuestOk: input.machineGuestOk ? 1 : 0,
+        machineUser: input.machineUser,
         now,
       },
     );
@@ -203,7 +203,7 @@ export class ShareStore {
     // Written after the insert because the envelope is bound to the row id, which only
     // exists once the row does.
     this.writePassword(id, input.smbPassword);
-    this.writeTncPassword(id, input.tncPassword);
+    this.writeMachinePassword(id, input.machinePassword);
     return toShare(this.requireRow(id));
   }
 
@@ -236,8 +236,9 @@ export class ShareStore {
     if (patch.maxFileSizeMb !== undefined) {
       set('max_file_size_mb', 'maxFileSizeMb', patch.maxFileSizeMb);
     }
-    if (patch.tncGuestOk !== undefined) set('tnc_guest_ok', 'tncGuestOk', patch.tncGuestOk ? 1 : 0);
-    if (patch.tncUser !== undefined) set('tnc_user', 'tncUser', patch.tncUser);
+    if (patch.machineGuestOk !== undefined)
+      set('machine_guest_ok', 'machineGuestOk', patch.machineGuestOk ? 1 : 0);
+    if (patch.machineUser !== undefined) set('machine_user', 'machineUser', patch.machineUser);
     if (patch.readOnly !== undefined) set('read_only', 'readOnly', patch.readOnly ? 1 : 0);
 
     if (assignments.length > 0) {
@@ -248,7 +249,7 @@ export class ShareStore {
     }
 
     this.writePassword(existing.id, patch.smbPassword);
-    this.writeTncPassword(existing.id, patch.tncPassword);
+    this.writeMachinePassword(existing.id, patch.machinePassword);
     return toShare(this.requireRow(id));
   }
 
@@ -284,22 +285,22 @@ export class ShareStore {
   }
 
   /** The password a machine authenticates with, or `undefined` when none is set. */
-  tncPassword(id: number): string | undefined {
+  machinePassword(id: number): string | undefined {
     const row = this.requireRow(id);
-    if (row.tnc_password === null || row.tnc_password === '') {
+    if (row.machine_password === null || row.machine_password === '') {
       return undefined;
     }
-    return this.config.decryptFor(tncPasswordAad(id), row.tnc_password);
+    return this.config.decryptFor(machinePasswordAad(id), row.machine_password);
   }
 
   /** Same three-way rule as {@link writePassword}: undefined and the sentinel leave it. */
-  private writeTncPassword(id: number, value: string | undefined): void {
+  private writeMachinePassword(id: number, value: string | undefined): void {
     if (value === undefined || value === SECRET_SENTINEL) {
       return;
     }
-    this.db.run('UPDATE shares SET tnc_password = @password WHERE id = @id', {
+    this.db.run('UPDATE shares SET machine_password = @password WHERE id = @id', {
       id,
-      password: value === '' ? null : this.config.encryptFor(tncPasswordAad(id), value),
+      password: value === '' ? null : this.config.encryptFor(machinePasswordAad(id), value),
     });
   }
 
