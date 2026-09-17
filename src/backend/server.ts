@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 
 import { DEFAULT_DB_PATH, DEFAULT_LOG_DIR, bootstrap, type Service } from './index';
@@ -377,7 +378,12 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
       firewall.apply(service.config.get('network'));
     });
 
-    const material = ensureCertificate(paths.certDir);
+    // Named after the host, not after the library's `smb-bridge.local` default: the
+    // operator browses to the name they gave the appliance, and a certificate that does
+    // not carry it makes the browser's warning permanent rather than one-off. Only for
+    // the *first* certificate — an existing one is loaded untouched, including one the
+    // operator uploaded. A later rename is handled by `reissueCertificateForHostname`.
+    const material = ensureCertificate(paths.certDir, { commonName: hostname() });
 
     /*
       Failover, and the timer that feeds it.

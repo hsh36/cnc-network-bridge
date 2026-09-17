@@ -166,6 +166,32 @@ describe('apply', () => {
     expect(service().apply('lan', '10.0.0.5').expectedUrl).toBe('https://10.0.0.5/');
   });
 
+  it('reports the rename so the caller can bring the certificate into step', () => {
+    config.set('network', {
+      lan: {
+        interface: 'eth0',
+        method: 'static',
+        address: '10.0.0.5/24',
+        gateway: '10.0.0.1',
+        hostname: 'bridge-01',
+      },
+      machine: { interface: 'eth1', method: 'static', address: '192.168.42.1/24' },
+    });
+
+    // The address comes along bare: the certificate has to carry it as an IP SAN, and
+    // a prefix length is not part of one.
+    expect(service().apply('lan', '10.0.0.5').renamedTo).toEqual({
+      hostname: 'bridge-01',
+      address: '10.0.0.5',
+    });
+  });
+
+  it('reports no rename for the machine side, which does not name the host', () => {
+    // What the machine side calls `hostname` is the name Samba announces; it lives in
+    // smb.conf and has nothing to do with the certificate or with `hostnamectl`.
+    expect(service().apply('machine', '10.0.0.5').renamedTo).toBeNull();
+  });
+
   it('offers no URL for DHCP, rather than guessing one', () => {
     config.set('network', {
       lan: { interface: 'eth0', method: 'dhcp' },

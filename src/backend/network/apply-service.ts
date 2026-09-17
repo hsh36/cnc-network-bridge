@@ -48,6 +48,12 @@ export interface ApplyResult {
    * they may have no way to look it up.
    */
   readonly expectedUrl: string | null;
+  /**
+   * The hostname this apply set, and the address it set it on — what the caller needs
+   * to bring the TLS certificate back in step. Empty hostname means this side does not
+   * name the machine, so nothing about the certificate changed.
+   */
+  readonly renamedTo: { hostname: string; address: string | null } | null;
 }
 
 export interface NetworkApplyServiceOptions {
@@ -125,6 +131,18 @@ export class NetworkApplyService {
       status: expiresAt === null ? 'applied' : 'pending_confirmation',
       expiresAt,
       expectedUrl: expectedUrlFor(desired),
+      // Reported unconditionally for the LAN side rather than only when the name
+      // actually differs: this service has no way to know what the certificate already
+      // covers, and the caller that does treats an unchanged name as a no-op anyway.
+      //
+      // The rename is *not* covered by the revert timer — that timer brings back a
+      // NetworkManager profile, and `hostnamectl` is not part of one. So the new name
+      // stands whether or not the addressing is confirmed, and so should the
+      // certificate that carries it.
+      renamedTo:
+        side === 'lan' && desired.hostname !== ''
+          ? { hostname: desired.hostname, address: addressOf(desired) }
+          : null,
     };
   }
 
@@ -306,9 +324,15 @@ function ownerOf(address: string, read: typeof networkInterfaces): string | unde
  * place at the moment they can least afford it.
  */
 function expectedUrlFor(side: NetworkSide): string | null {
+  const host = addressOf(side);
+  return host === null ? null : `https://${host}/`;
+}
+
+/** The bare address of a static side, with the prefix length stripped. */
+function addressOf(side: NetworkSide): string | null {
   if (side.method !== 'static' || side.address === undefined) {
     return null;
   }
   const [host] = side.address.split('/');
-  return host === undefined ? null : `https://${host}/`;
+  return host === undefined || host === '' ? null : host;
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
+  type ApplyNetworkSideResponse,
   type BridgeModeConfig,
   type DhcpConfig,
   type InterfaceDiscovery,
@@ -373,23 +374,58 @@ function InterfaceSections(): JSX.Element {
       .finally(() => setBusy(undefined));
   };
 
+  /**
+   * The sentence that explains a certificate the browser is about to complain about.
+   *
+   * `already_covered` and `null` say nothing — the certificate the operator's browser
+   * already trusts is the one it will meet, and a line about TLS on every apply would
+   * train them to ignore the one that matters.
+   */
+  const certificateNotice = (
+    outcome: ApplyNetworkSideResponse['certificate'],
+  ): string | undefined => {
+    switch (outcome) {
+      case 'reissued':
+        return t('cert_reissued');
+      case 'custom_certificate':
+        return t('cert_kept_custom');
+      case 'failed':
+      case 'no_certificate':
+        return t('cert_reissue_failed');
+      case 'already_covered':
+      case null:
+        return undefined;
+    }
+  };
+
   /** Applies the saved LAN configuration, arming the rollback the backend decides on. */
   const applyLan = (): Promise<void> => {
     setApplyingLan(true);
     return api('network.apply', { body: { side: 'lan' } })
       .then((result) => {
+        // Appended rather than shown on its own: whatever else happened, a renamed
+        // appliance meets the operator with a certificate warning on the next page
+        // load, and one that arrives unexplained looks like the change went wrong.
+        const certificate = certificateNotice(result.certificate);
         if (result.status === 'pending_confirmation') {
           setNotice({
             side: 'lan',
-            text:
+            text: [
               result.expectedUrl === null
                 ? t('lan_pending_dhcp')
                 : t('lan_pending', { url: result.expectedUrl }),
+              certificate,
+            ]
+              .filter((part) => part !== undefined)
+              .join(' '),
           });
           // The banner in the layout picks the pending change up on its own poll.
           return undefined;
         }
-        setNotice({ side: 'lan', text: t('lan_applied') });
+        setNotice({
+          side: 'lan',
+          text: [t('lan_applied'), certificate].filter((part) => part !== undefined).join(' '),
+        });
         return loadInterfaces();
       })
       .catch(onError)

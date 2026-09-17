@@ -1,7 +1,8 @@
 import { Router } from 'express';
 
-import { applyNetworkSideRequestSchema } from '../../../shared';
+import { applyNetworkSideRequestSchema, type CertificateReissueOutcome } from '../../../shared';
 import { NetworkApplyError, NetworkApplyService } from '../../network/apply-service';
+import { reissueCertificateForHostname } from '../certificate-service';
 import { type AppContext } from '../context';
 import { HttpError } from '../envelope';
 import { ok, requireCsrf, requireSession } from '../middleware';
@@ -38,7 +39,7 @@ export function networkApplyRoutes(ctx: AppContext): Router {
             : `awaiting confirmation until ${new Date((result.expiresAt ?? 0) * 1000).toISOString()}`,
         ...(req.ip === undefined ? {} : { ip: req.ip }),
       });
-      ok(res, result);
+      ok(res, { ...result, certificate: certificateFor(ctx, result.renamedTo) });
     } catch (error) {
       throw toHttp(error);
     }
@@ -75,6 +76,30 @@ export function networkApplyRoutes(ctx: AppContext): Router {
   });
 
   return router;
+}
+
+/**
+ * Keeps the self-signed certificate naming the host the appliance now answers to.
+ *
+ * Runs *after* the apply, deliberately. The rename has already happened by then and is
+ * not part of what the revert timer would undo, so there is no state to be consistent
+ * with beyond "what is the machine called now". Swapping the certificate does not drop
+ * this connection — `setSecureContext` only affects handshakes that have yet to happen
+ * — so the operator still receives this response, including the word that their next
+ * page load will meet a certificate their browser has not seen before.
+ */
+function certificateFor(
+  ctx: AppContext,
+  renamedTo: { hostname: string; address: string | null } | null,
+): CertificateReissueOutcome | null {
+  if (renamedTo === null) {
+    return null;
+  }
+  return reissueCertificateForHostname(
+    ctx,
+    renamedTo.hostname,
+    renamedTo.address === null ? [] : [renamedTo.address],
+  ).reason;
 }
 
 function toHttp(error: unknown): unknown {
