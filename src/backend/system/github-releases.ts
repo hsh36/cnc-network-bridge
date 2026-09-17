@@ -118,23 +118,67 @@ export function pickRelease(
   );
 }
 
+/**
+ * The channel a *specific* version was published on.
+ *
+ * Asked about the installed version, so the appliance can say on its own screen whether
+ * what is running is a pre-release. It cannot be derived from the version string —
+ * every release this project has cut so far is numbered like a stable one and flagged
+ * as a pre-release on GitHub — and it cannot be derived from `updates.channel` either,
+ * which says what the device is willing to accept, not what it accepted.
+ *
+ * `null` when GitHub's recent releases do not mention that version at all: a build from
+ * source, a release old enough to have fallen off the first page, or a tag that was
+ * deleted. Null is reported as "unknown" rather than guessed at — claiming a build is
+ * stable because nothing said otherwise is the wrong way round.
+ *
+ * Unlike {@link pickRelease} this ignores the channel filter: the question is what the
+ * installed version *is*, which does not change with what the device is looking for.
+ */
+export function channelOf(
+  releases: readonly GithubRelease[],
+  version: string,
+): 'stable' | 'beta' | null {
+  const wanted = normaliseVersion(version);
+  const match = releases.find(
+    (release) => release.draft !== true && normaliseVersion(asString(release.tag_name)) === wanted,
+  );
+  if (match === undefined) {
+    return null;
+  }
+  return match.prerelease === true ? 'beta' : 'stable';
+}
+
+/** What one look at GitHub's release list answers. */
+export interface ReleaseSurvey {
+  /** The newest release on the requested channel, newer or not than what is installed. */
+  readonly latest: ReleaseInfo | null;
+  /** The channel the installed version was published on; see {@link channelOf}. */
+  readonly installedChannel: 'stable' | 'beta' | null;
+}
+
 export interface FetchReleasesOptions {
   readonly repo: string;
   readonly channel: 'stable' | 'beta';
+  /** The running version, so one request answers "what is new" and "what am I on". */
+  readonly installedVersion?: string;
   readonly fetchImpl?: typeof fetch;
   readonly timeoutMs?: number;
 }
 
 /**
- * The newest release GitHub offers for `repo`, or `null` when it publishes none.
+ * What GitHub publishes for `repo`: the newest release on the channel, and what the
+ * installed version was published as.
+ *
+ * Both answers come out of one request. Asking twice would double a rate limit that is
+ * already the tightest thing about this call, for a second answer that is sitting in
+ * the first response.
  *
  * Unauthenticated: this is a public repository and the appliance holds no token. That
  * caps the rate at sixty requests an hour from one address, which a bridge checking on
  * a weekly schedule will never approach.
  */
-export async function fetchLatestRelease(
-  options: FetchReleasesOptions,
-): Promise<ReleaseInfo | null> {
+export async function fetchLatestRelease(options: FetchReleasesOptions): Promise<ReleaseSurvey> {
   if (!/^[A-Za-z0-9._-]{1,100}\/[A-Za-z0-9._-]{1,100}$/.test(options.repo)) {
     throw new UpdateCheckError(`"${options.repo}" is not an owner/repo pair`);
   }
@@ -169,7 +213,14 @@ export async function fetchLatestRelease(
     if (!Array.isArray(payload)) {
       throw new UpdateCheckError('GitHub returned something that is not a list of releases');
     }
-    return pickRelease(payload as GithubRelease[], options.channel);
+    const releases = payload as GithubRelease[];
+    return {
+      latest: pickRelease(releases, options.channel),
+      installedChannel:
+        options.installedVersion === undefined
+          ? null
+          : channelOf(releases, options.installedVersion),
+    };
   } catch (error) {
     if (error instanceof UpdateCheckError) {
       throw error;

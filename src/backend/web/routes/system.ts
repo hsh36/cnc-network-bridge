@@ -102,6 +102,7 @@ export function systemRoutes(ctx: AppContext): Router {
    */
   const idleStatus = (): UpdateStatus => ({
     currentVersion: ctx.version,
+    currentChannel: null,
     available: null,
     phase: 'idle',
     progressPct: null,

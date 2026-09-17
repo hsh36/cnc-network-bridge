@@ -56,6 +56,18 @@ export const availableReleaseSchema = z.object({
 
 export const updateStatusSchema = z.object({
   currentVersion: z.string(),
+  /**
+   * What the running version was published as on GitHub.
+   *
+   * Shown next to the version because the number alone does not say: this project
+   * publishes every release as a pre-release until one is declared stable, so an
+   * appliance can be running a pre-release while looking exactly like a stable build.
+   *
+   * Null means "not known yet" — no update check has run since this process started, or
+   * GitHub does not list this version at all (a build from source, or a tag that has
+   * fallen off the recent list). Never guessed at.
+   */
+  currentChannel: updateChannelSchema.nullable(),
   available: availableReleaseSchema.nullable(),
   phase: updatePhaseSchema,
   /** 0-100 within the current phase, when the phase can report progress. */

@@ -130,6 +130,32 @@ describe('check', () => {
     expect(updates.getStatus().available?.version).toBe('0.3.0');
   });
 
+  it('reports what the running version was published as', async () => {
+    // The point of the field: 0.1.0 reads like a stable release and is not one. Every
+    // release of this project is a pre-release until one is declared stable, so the
+    // operator cannot tell from the number on the screen.
+    const updates = manager(respondWith([release('v0.1.0', { prerelease: true })]));
+    await updates.check();
+
+    expect(updates.getStatus().currentChannel).toBe('beta');
+  });
+
+  it('says it does not know the channel before any check has run', async () => {
+    const updates = manager(respondWith([release('v0.1.0', { prerelease: true })]));
+
+    expect(updates.getStatus().currentChannel).toBeNull();
+    await updates.check();
+    expect(updates.getStatus().currentChannel).toBe('beta');
+  });
+
+  it('leaves the channel unknown for a version GitHub does not list', async () => {
+    // Installed from a git checkout, or from a tag that has scrolled off the list.
+    const updates = manager(respondWith([release('v0.2.0')]));
+    await updates.check();
+
+    expect(updates.getStatus().currentChannel).toBeNull();
+  });
+
   it('stamps lastCheckAt even when the check fails, and keeps the reason', async () => {
     // Without the timestamp the screen reads "no checks performed yet" next to an
     // error, which describes a state that never happened.

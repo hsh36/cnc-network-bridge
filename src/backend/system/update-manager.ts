@@ -109,6 +109,15 @@ interface HistoryRow {
 
 export class UpdateManager {
   private currentVersion: string;
+  /**
+   * What the running version was published as, once a check has asked GitHub.
+   *
+   * Null until then, and null afterwards for a version GitHub does not list. The screen
+   * says "unknown" for both, which is the truth — and the reason this is not persisted:
+   * a value cached from before an update would describe the version that is no longer
+   * running.
+   */
+  private currentChannel: 'stable' | 'beta' | null = null;
   private phase: UpdatePhase = 'idle';
   private progressPct: number | null = null;
   private available: ReleaseInfo | null = null;
@@ -164,6 +173,7 @@ export class UpdateManager {
   private snapshot(): UpdateStatus {
     return {
       currentVersion: this.currentVersion,
+      currentChannel: this.currentChannel,
       available: this.available,
       phase: this.phase,
       progressPct: this.progressPct,
@@ -191,9 +201,10 @@ export class UpdateManager {
     this.publishStatus();
 
     try {
-      const release = await fetchLatestRelease({
+      const survey = await fetchLatestRelease({
         repo: GITHUB_REPO,
         channel: updates.channel,
+        installedVersion: this.currentVersion,
         ...(this.fetchImpl ? { fetchImpl: this.fetchImpl } : {}),
       });
 
@@ -201,7 +212,10 @@ export class UpdateManager {
       // as an update is the bug that makes an operator install it and see nothing
       // change.
       this.available =
-        release !== null && isNewer(release.version, this.currentVersion) ? release : null;
+        survey.latest !== null && isNewer(survey.latest.version, this.currentVersion)
+          ? survey.latest
+          : null;
+      this.currentChannel = survey.installedChannel;
       this.lastCheckAt = Math.floor(Date.now() / 1000);
       this.phase = 'idle';
       this.publishStatus();

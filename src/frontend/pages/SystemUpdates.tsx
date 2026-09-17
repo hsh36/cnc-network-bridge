@@ -55,14 +55,41 @@ export function SystemUpdates(): JSX.Element {
             </div>
           ) : (
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                  {status?.currentVersion ?? '—'}
-                </span>
-                {status?.rollbackVersion && (
-                  <Badge tone="warn">
-                    {t('rollback_available', { version: status.rollbackVersion })}
-                  </Badge>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+                    {status?.currentVersion ?? '—'}
+                  </span>
+                  {/* The version number does not say this and cannot: every release of
+                      this project is published as a pre-release until one is declared
+                      stable, so 0.4.0 on a running appliance looks exactly like a
+                      stable build. An operator deciding whether to trust what is on the
+                      machine needs to be told which it is. */}
+                  {status?.currentChannel === 'beta' && (
+                    <Badge tone="warn">{t('current_beta_badge')}</Badge>
+                  )}
+                  {status?.currentChannel === 'stable' && (
+                    <Badge tone="ok">{t('current_stable_badge')}</Badge>
+                  )}
+                  {status?.rollbackVersion && (
+                    <Badge tone="warn">
+                      {t('rollback_available', { version: status.rollbackVersion })}
+                    </Badge>
+                  )}
+                </div>
+                {/* Spelled out under the badge rather than hidden in a tooltip: what
+                    a pre-release means for the machine on the shop floor is the part an
+                    operator needs, and "unknown" is said out loud because a missing
+                    badge is indistinguishable from "we looked and it is stable". */}
+                {status?.currentChannel === 'beta' && (
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {t('current_beta_hint')}
+                  </span>
+                )}
+                {status?.currentChannel === null && (
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {t('current_channel_unknown')}
+                  </span>
                 )}
               </div>
               {status?.rollbackVersion && (

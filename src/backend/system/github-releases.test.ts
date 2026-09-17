@@ -1,4 +1,5 @@
 import {
+  channelOf,
   compareVersions,
   fetchLatestRelease,
   isNewer,
@@ -87,6 +88,40 @@ describe('pickRelease', () => {
   });
 });
 
+describe('channelOf', () => {
+  it('says a pre-release is one, whatever its version number looks like', () => {
+    // The case this exists for: every release cut so far is numbered like a stable one
+    // and flagged as a pre-release, so nothing but this flag can tell them apart.
+    expect(channelOf([release({ tag_name: 'v0.4.0', prerelease: true })], '0.4.0')).toBe('beta');
+  });
+
+  it('says a stable release is stable', () => {
+    expect(channelOf([release()], '0.2.0')).toBe('stable');
+  });
+
+  it('ignores the v prefix on either side', () => {
+    expect(channelOf([release({ tag_name: '0.2.0' })], 'v0.2.0')).toBe('stable');
+  });
+
+  it('answers unknown for a version GitHub does not list, rather than assuming stable', () => {
+    // A build from source, or a release old enough to have fallen off the first page.
+    // Calling it stable because nothing said otherwise is the wrong way round.
+    expect(channelOf([release()], '0.9.9')).toBeNull();
+  });
+
+  it('does not answer from a draft', () => {
+    expect(channelOf([release({ draft: true })], '0.2.0')).toBeNull();
+  });
+
+  it('looks past the channel filter, unlike pickRelease', () => {
+    // An appliance on the stable channel still has to be told it is running a
+    // pre-release — that is exactly the operator who most needs to know.
+    const releases = [release({ tag_name: 'v0.4.0', prerelease: true })];
+    expect(pickRelease(releases, 'stable')).toBeNull();
+    expect(channelOf(releases, '0.4.0')).toBe('beta');
+  });
+});
+
 const jsonResponse = (body: unknown, status = 200): Response =>
   ({
     ok: status >= 200 && status < 300,
@@ -103,10 +138,41 @@ describe('fetchLatestRelease', () => {
       fetchImpl: fetchImpl,
     });
 
-    expect(result?.version).toBe('0.2.0');
+    expect(result.latest?.version).toBe('0.2.0');
     expect(fetchImpl.mock.calls[0]?.[0]).toContain(
       'https://api.github.com/repos/hsh36/smb-bridge/releases',
     );
+  });
+
+  it('answers what the installed version was published as, from the same request', async () => {
+    const fetchImpl = jest
+      .fn()
+      .mockResolvedValue(
+        jsonResponse([release({ tag_name: 'v0.4.0', prerelease: true }), release()]),
+      );
+
+    const result = await fetchLatestRelease({
+      repo: 'hsh36/smb-bridge',
+      channel: 'stable',
+      installedVersion: '0.4.0',
+      fetchImpl,
+    });
+
+    expect(result.installedChannel).toBe('beta');
+    // One request, two answers: the rate limit is the tightest thing about this call.
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the installed channel unknown when nobody asked about a version', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(jsonResponse([release()]));
+
+    const result = await fetchLatestRelease({
+      repo: 'hsh36/smb-bridge',
+      channel: 'stable',
+      fetchImpl,
+    });
+
+    expect(result.installedChannel).toBeNull();
   });
 
   it('rejects a repository that is not an owner/repo pair before making a request', async () => {
@@ -178,7 +244,7 @@ describe('fetchLatestRelease', () => {
     ).rejects.toThrow(/did not answer in time/);
   });
 
-  it('returns null, not an error, when the repository has no releases yet', async () => {
+  it('reports nothing on offer, not an error, when the repository has no releases yet', async () => {
     const fetchImpl = jest.fn().mockResolvedValue(jsonResponse([]));
     await expect(
       fetchLatestRelease({
@@ -186,6 +252,6 @@ describe('fetchLatestRelease', () => {
         channel: 'stable',
         fetchImpl: fetchImpl,
       }),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({ latest: null, installedChannel: null });
   });
 });
