@@ -174,16 +174,17 @@ export class ShareStore {
          name, enabled, server_unc, mount_point, cache_path,
          smb_domain, smb_user, smb_version, smb_seal, conflict_mode,
          exclude_patterns, scan_interval_ms, bandwidth_limit_kbps, max_file_size_mb,
-         machine_guest_ok, machine_user, created_at, updated_at
+         read_only, machine_guest_ok, machine_user, created_at, updated_at
        ) VALUES (
          @name, @enabled, @serverUnc, @mountPoint, @cachePath,
          @smbDomain, @smbUser, @smbVersion, @smbSeal, @conflictMode,
          @excludePatterns, @scanIntervalMs, @bandwidthLimitKbps, @maxFileSizeMb,
-         @machineGuestOk, @machineUser, @now, @now
+         @readOnly, @machineGuestOk, @machineUser, @now, @now
        )`,
       {
         name: input.name,
         enabled: input.enabled ? 1 : 0,
+        readOnly: input.readOnly ? 1 : 0,
         serverUnc: input.serverUnc,
         mountPoint,
         cachePath,

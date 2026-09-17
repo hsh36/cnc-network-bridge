@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from '../hooks/useTranslation';
 import { ApiError, api } from '../lib/api-client';
 import { ShareSides, type ShareSidesValue } from './ShareSides';
+import { ShareTuning, type ShareTuningValue } from './ShareTuning';
 import { Button } from './ui/Button';
 
 /**
@@ -10,12 +11,16 @@ import { Button } from './ui/Button';
  *
  * `+ New Share` used to call an empty handler, so there was no way to make one at all.
  * The dialog asks for both ends because a share is both ends: an export on the server
- * and a name the machines mount. Everything else — sync interval, exclusions,
- * bandwidth — has a working default and belongs in the settings dialog afterwards,
- * where an operator can see the share before tuning it.
+ * and a name the machines mount.
+ *
+ * Everything else — conflict mode, exclusions, bandwidth, scan interval — is here too,
+ * folded away. It used to be reachable only by creating the share and reopening it,
+ * which meant a share could not be given an exclude list until after its first scan had
+ * already indexed what the list was meant to exclude. The create request has accepted
+ * all of these since it was written; only the fields were missing.
  */
 
-const EMPTY: ShareSidesValue = {
+const EMPTY: ShareSidesValue & ShareTuningValue = {
   name: '',
   serverUnc: '',
   smbDomain: '',
@@ -28,6 +33,14 @@ const EMPTY: ShareSidesValue = {
   machineGuestOk: false,
   machineUser: '',
   machinePassword: '',
+  // The schema's own defaults, repeated here so the form shows what it will send rather
+  // than empty fields that mean "whatever the backend decides".
+  conflictMode: 'last_write_wins',
+  readOnly: false,
+  bandwidthLimitKbps: null,
+  excludePatterns: '',
+  maxFileSizeMb: 512,
+  scanIntervalMs: 15_000,
 };
 
 export function ShareCreate({
@@ -38,11 +51,11 @@ export function ShareCreate({
   readonly onCreated: () => void;
 }): JSX.Element {
   const t = useTranslation('shares');
-  const [value, setValue] = useState<ShareSidesValue>(EMPTY);
+  const [value, setValue] = useState<ShareSidesValue & ShareTuningValue>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
 
-  const change = (patch: Partial<ShareSidesValue>): void =>
+  const change = (patch: Partial<ShareSidesValue & ShareTuningValue>): void =>
     setValue((current) => ({ ...current, ...patch }));
 
   const submit = (): void => {
@@ -64,6 +77,15 @@ export function ShareCreate({
         // which is what a guest share has.
         machineUser: value.machineUser.trim() === '' ? null : value.machineUser.trim(),
         ...(value.machinePassword === '' ? {} : { machinePassword: value.machinePassword }),
+        conflictMode: value.conflictMode,
+        readOnly: value.readOnly,
+        bandwidthLimitKbps: value.bandwidthLimitKbps,
+        excludePatterns: value.excludePatterns
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line !== ''),
+        maxFileSizeMb: value.maxFileSizeMb,
+        scanIntervalMs: value.scanIntervalMs,
       },
     })
       .then(() => {
@@ -110,6 +132,8 @@ export function ShareCreate({
           )}
 
           <ShareSides value={value} onChange={change} nameEditable />
+
+          <ShareTuning value={value} onChange={change} />
 
           <div className="flex items-center gap-3">
             <Button onClick={submit} loading={saving} disabled={incomplete || saving}>

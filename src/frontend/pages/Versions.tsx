@@ -4,6 +4,7 @@ import { type FileVersion } from '../../shared';
 import { Badge, type BadgeTone } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { VersioningSettings } from '../components/settings/VersioningSettings';
+import { Collapsible } from '../components/ui/Collapsible';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Input } from '../components/ui/Input';
@@ -240,6 +241,12 @@ export function Versions(): JSX.Element {
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{t('title')}</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
       </div>
+      {/* Settings above what they govern, folded away: an operator comes to this
+        page to read it, not to configure it, and the settings that shape it should
+        be within reach without being in the way. */}
+      <Collapsible title={t('settings_title')}>
+        <VersioningSettings />
+      </Collapsible>
 
       <Card>
         <CardHeader title={t('find_file')} subtitle={t('find_file_subtitle')} />
@@ -456,15 +463,6 @@ export function Versions(): JSX.Element {
           </Card>
         </div>
       )}
-
-      {/* How many versions are kept, and for how long, is the same subject as the list
-        above: this is where an operator learns why an old one is no longer there. */}
-      <Card>
-        <CardHeader title={t('settings_title')} />
-        <CardBody>
-          <VersioningSettings />
-        </CardBody>
-      </Card>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { ConflictDetail } from '../components/ConflictDetail';
 import { ConflictsList } from '../components/ConflictsList';
 import { ForceReleaseDialog } from '../components/ForceReleaseDialog';
 import { LockingSettings } from '../components/settings/LockingSettings';
+import { Collapsible } from '../components/ui/Collapsible';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Spinner } from '../components/ui/Spinner';
@@ -214,6 +215,12 @@ export function LocksConflictsPage(): JSX.Element {
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{t('title')}</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
       </div>
+      {/* Settings above what they govern, folded away: an operator comes to this
+        page to read it, not to configure it, and the settings that shape it should
+        be within reach without being in the way. */}
+      <Collapsible title={t('settings_title')}>
+        <LockingSettings />
+      </Collapsible>
 
       {/* Alerts */}
       {notice !== undefined && (
@@ -249,15 +256,6 @@ export function LocksConflictsPage(): JSX.Element {
       <Card>
         <CardBody>
           <Tabs items={[activeLocksTab, conflictsTab]} />
-        </CardBody>
-      </Card>
-
-      {/* How locking behaves belongs next to what it is doing: whether it is on at all,
-        what it projects onto the server, and when it lets go. */}
-      <Card>
-        <CardHeader title={t('settings_title')} />
-        <CardBody>
-          <LockingSettings />
         </CardBody>
       </Card>
 

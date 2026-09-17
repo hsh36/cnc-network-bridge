@@ -2,7 +2,7 @@ import { useTranslation } from '../hooks/useTranslation';
 import { SharesSection } from '../components/SharesSection';
 import { MachineSmbGlobals } from '../components/MachineSmbGlobals';
 import { SyncSettings } from '../components/settings/SyncSettings';
-import { Card, CardBody, CardHeader } from '../components/ui/Card';
+import { Collapsible } from '../components/ui/Collapsible';
 
 /**
  * Shares, and everything that describes how they are served.
@@ -28,16 +28,20 @@ export function SharesPage(): JSX.Element {
         <p className="text-sm text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
       </div>
 
-      <SharesSection />
+      {/*
+        Settings above the list, folded away.
+
+        They were at the bottom, which on a bridge with several shares meant scrolling
+        past the whole table to reach them — and nothing on the way down said they were
+        there at all. Folded, they cost one line each and announce themselves.
+      */}
+      <Collapsible title={t('sync_settings_title')} subtitle={t('sync_settings_hint')}>
+        <SyncSettings />
+      </Collapsible>
 
       <MachineSmbGlobals />
 
-      <Card>
-        <CardHeader title={t('sync_settings_title')} subtitle={t('sync_settings_hint')} />
-        <CardBody>
-          <SyncSettings />
-        </CardBody>
-      </Card>
+      <SharesSection />
     </div>
   );
 }

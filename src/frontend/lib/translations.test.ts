@@ -46,6 +46,25 @@ interface CallSite {
   readonly key: string;
 }
 
+/**
+ * Call sites whose key is assembled at run time: `` t(`freq_${frequency}`) ``.
+ *
+ * These are invisible to the literal scan, and that invisibility cost real translations:
+ * a pass that pruned unused keys by searching for `t('…')` deleted every `freq_*` and
+ * `weekday_*` entry, because nothing in the source spells them out. The schedule
+ * dropdowns then rendered their raw keys.
+ *
+ * A template's prefix is enough to check the family: if `freq_` is the prefix, at least
+ * one `freq_*` key has to exist in one of the file's namespaces. It does not prove every
+ * value is covered — that needs the runtime values, which the test does not have — but
+ * it does catch a family being removed wholesale, which is the failure that happened.
+ */
+interface TemplateSite {
+  readonly file: string;
+  readonly namespaces: readonly string[];
+  readonly prefix: string;
+}
+
 function callSites(): CallSite[] {
   const found: CallSite[] = [];
   for (const file of sourceFiles(FRONTEND_ROOT)) {
@@ -61,6 +80,28 @@ function callSites(): CallSite[] {
         file: relative(FRONTEND_ROOT, file).split(sep).join('/'),
         namespaces,
         key: match[1] ?? '',
+      });
+    }
+  }
+  return found;
+}
+
+function templateSites(): TemplateSite[] {
+  const found: TemplateSite[] = [];
+  for (const file of sourceFiles(FRONTEND_ROOT)) {
+    const source = stripComments(readFileSync(file, 'utf8'));
+    const namespaces = [
+      ...new Set([...source.matchAll(/useTranslation\('([^']+)'\)/g)].map((m) => m[1] ?? '')),
+    ];
+    if (namespaces.length === 0) {
+      continue;
+    }
+    // t(`prefix_${…}`) — the literal part before the first interpolation.
+    for (const match of source.matchAll(/\bt[A-Za-z]*\(`([a-z0-9_]+)\$\{/gi)) {
+      found.push({
+        file: relative(FRONTEND_ROOT, file).split(sep).join('/'),
+        namespaces,
+        prefix: match[1] ?? '',
       });
     }
   }
@@ -89,6 +130,24 @@ describe('translation call sites', () => {
       .map((site) => `${site.file}: t('${site.key}') in [${site.namespaces.join(', ')}]`);
 
     expect([...new Set(unresolved)]).toEqual([]);
+  });
+
+  it.each(['en', 'de'] as const)('keeps the families built at run time (%s)', (language) => {
+    const bundle = bundles[language];
+    const templates = templateSites();
+
+    expect(templates.length).toBeGreaterThan(0);
+
+    const empty = templates
+      .filter(
+        (site) =>
+          !site.namespaces.some((ns) =>
+            Object.keys(bundle[ns] ?? {}).some((key) => key.startsWith(site.prefix)),
+          ),
+      )
+      .map((site) => `${site.file}: t(\`${site.prefix}\${…}\`) in [${site.namespaces.join(', ')}]`);
+
+    expect([...new Set(empty)]).toEqual([]);
   });
 
   it('has no key that repeats its own namespace', () => {

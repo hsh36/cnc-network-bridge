@@ -81,6 +81,7 @@ function createShare(name: string, overrides: Record<string, unknown> = {}): num
     scanIntervalMs: 60_000,
     bandwidthLimitKbps: null,
     maxFileSizeMb: 512,
+    readOnly: false,
     machineGuestOk: true,
     machineUser: null,
     machinePassword: '',

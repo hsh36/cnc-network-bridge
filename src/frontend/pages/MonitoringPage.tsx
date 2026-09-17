@@ -11,7 +11,8 @@ import { ThroughputChart } from '../components/ThroughputChart';
 import { SystemInfoCard } from '../components/SystemInfoCard';
 import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { MonitoringSettings } from '../components/settings/MonitoringSettings';
-import { Card, CardBody, CardHeader } from '../components/ui/Card';
+import { Collapsible } from '../components/ui/Collapsible';
+import { Card, CardBody } from '../components/ui/Card';
 import { FullPageSpinner } from '../components/ui/Spinner';
 import { useApiQuery } from '../hooks/useApi';
 import { getTimeRangeSeconds, useMetrics } from '../hooks/useMetrics';
@@ -96,6 +97,12 @@ export function MonitoringPage(): JSX.Element {
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{t('title')}</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
       </div>
+      {/* Settings above what they govern, folded away: an operator comes to this
+        page to read it, not to configure it, and the settings that shape it should
+        be within reach without being in the way. */}
+      <Collapsible title={t('settings_title')}>
+        <MonitoringSettings />
+      </Collapsible>
 
       {metrics.error !== undefined && (
         <Card className="border-status-error/40">
@@ -146,16 +153,6 @@ export function MonitoringPage(): JSX.Element {
         <DiskUsageChart systemInfo={systemInfo.data} loading={systemLoading} />
         <ShareHealthTable shares={status.data?.shares} loading={sharesLoading} />
       </div>
-
-      {/* What the page above measures is configured here rather than on a Configuration
-        page of its own: the sample interval and the disk warning threshold only mean
-        anything next to the charts they govern. */}
-      <Card>
-        <CardHeader title={t('settings_title')} />
-        <CardBody>
-          <MonitoringSettings />
-        </CardBody>
-      </Card>
     </div>
   );
 }

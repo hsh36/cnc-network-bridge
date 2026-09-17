@@ -110,6 +110,15 @@ export const createShareRequestSchema = z
     scanIntervalMs: z.number().int().min(1000).max(600_000).default(15_000),
     bandwidthLimitKbps: z.number().int().positive().nullable().default(null),
     maxFileSizeMb: z.number().int().min(1).max(102_400).default(512),
+    /**
+     * Create the share already read-only.
+     *
+     * Settable here as well as on edit, because a share can be meant as read-only from
+     * the start — a library of proven programs the shop floor may run but not change —
+     * and having to create it writable and then close it leaves a window in which it is
+     * not what it was meant to be.
+     */
+    readOnly: z.boolean().default(false),
     // Off by default. Guest access on a machine segment is defensible and often what a
     // shop wants, but defaulting to it means every share ever created is open until
     // somebody notices — a default that has to be undone is not a default.

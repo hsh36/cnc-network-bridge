@@ -102,11 +102,9 @@ export function SharesSection(): JSX.Element {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t('title')}</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
-        </div>
+      {/* No heading of its own: the page above already carries one, and two identical
+        titles stacked on top of each other was exactly as confusing as it sounds. */}
+      <div className="flex items-center justify-end">
         <Button size="sm" onClick={handleCreateClick}>
           {t('new_share')}
         </Button>
