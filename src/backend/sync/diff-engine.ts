@@ -314,6 +314,28 @@ const SERVER_MUTATING: ReadonlySet<VerdictAction> = new Set<VerdictAction>([
 const LOCAL_MUTATING: ReadonlySet<VerdictAction> = new Set<VerdictAction>(['PULL', 'DELETE_LOCAL']);
 
 /**
+ * Actions an unreachable server cannot justify.
+ *
+ * The first two write to it, so they obviously have to wait. `DELETE_LOCAL` is the one
+ * that matters and the one that was missing: it does not touch the server at all, but
+ * its *premise* is a statement about it — "this file is no longer on the server, so the
+ * cached copy should go too". An unreachable server cannot make that statement. What it
+ * produces is an empty listing, and an empty listing from a server nobody can reach is
+ * not the same thing as an empty share.
+ *
+ * Without this, a lost mount emptied the cache: every cached file looked server-deleted,
+ * and the deletions ran. That is the exact opposite of what the cache is for — the
+ * machines are supposed to keep reading their programs while the server is away, and
+ * instead the programs vanished from under them. Measured on the device: 23 files to 2,
+ * in the first cycle after the mount went.
+ */
+const NEEDS_A_REACHABLE_SERVER: ReadonlySet<VerdictAction> = new Set<VerdictAction>([
+  'PUSH',
+  'DELETE_REMOTE',
+  'DELETE_LOCAL',
+]);
+
+/**
  * Computes the verdict for one path.
  *
  * Pure: the same inputs always produce the same output, and nothing outside is touched.
@@ -631,7 +653,19 @@ function resolveConflict(local: Side, remote: Side, config: DiffConfig, context:
 function applyAvailabilityOverrides(input: Verdict, config: DiffConfig): Verdict {
   let current = input;
 
-  if ((config.serverOffline || config.readOnly) && SERVER_MUTATING.has(current.action)) {
+  /*
+    Read-only keeps the narrower set, offline gets the wider one.
+
+    They are not the same claim. Read-only says "do not write to the server", which says
+    nothing about whether a file is still there — the listing is trustworthy, so a
+    deletion it implies is trustworthy too. Offline says "we cannot see the server at
+    all", which invalidates the listing itself and everything concluded from it.
+  */
+  const blocked = config.serverOffline
+    ? NEEDS_A_REACHABLE_SERVER.has(current.action)
+    : SERVER_MUTATING.has(current.action);
+
+  if ((config.serverOffline || config.readOnly) && blocked) {
     const reason: VerdictReason = config.serverOffline ? 'server_offline' : 'read_only';
     current = verdict(
       'DEFER',

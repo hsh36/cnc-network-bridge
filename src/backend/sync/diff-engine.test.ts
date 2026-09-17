@@ -556,6 +556,40 @@ describe('decide — availability overrides', () => {
     expect(result.nextState).toBe('pending_push');
   });
 
+  it('does not empty the cache when the server is merely unreachable', () => {
+    /*
+      The regression, measured on the device before it was fixed: the mount went away,
+      every cached file looked server-deleted, and the cache went from 23 files to 2 in
+      one cycle. The machines are supposed to keep reading their programs while the
+      server is away; instead the programs vanished from under them.
+
+      `DELETE_LOCAL` does not touch the server, which is why it was not covered by the
+      offline guard. But its premise is a claim about the server — "this file is no
+      longer there" — and an unreachable server cannot make it. What it produces is an
+      empty listing, which is not the same as an empty share.
+    */
+    const result = run(side(10, 100, h('a')), null, base, { serverOffline: true });
+
+    expect(result.action).toBe('DEFER');
+    expect(result.reason).toBe('server_offline');
+  });
+
+  it('still deletes locally when the server is reachable and really lost the file', () => {
+    // The other half: the guard must not turn a genuine server-side deletion into a file
+    // that never goes away.
+    const result = run(side(10, 100, h('a')), null, base, { serverOffline: false });
+
+    expect(result.action).toBe('DELETE_LOCAL');
+  });
+
+  it('still deletes locally while read-only, because the listing is still trustworthy', () => {
+    // Read-only says "do not write to the server", not "we cannot see it". A deletion the
+    // listing implies is as trustworthy as the listing.
+    const result = run(side(10, 100, h('a')), null, base, { readOnly: true });
+
+    expect(result.action).toBe('DELETE_LOCAL');
+  });
+
   it('still pulls while the share is read-only, because a pull writes only locally', () => {
     const result = run(side(10, 100, h('a')), side(12, 300, h('d')), base, { readOnly: true });
     expect(result.action).toBe('PULL');
