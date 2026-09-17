@@ -393,10 +393,35 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
       logger,
       audit,
       onFlip: (change) => {
-        // Synchronous, and the whole point of the feature: until smb.conf says
-        // `read only = yes`, a machine can still save into a share whose server is gone.
+        /*
+          Restart, not reload — the one place in this service that needs it.
+
+          `read only` is a per-share parameter smbd applies when a client connects to the
+          share, and a reload does not revisit connections that already exist. A TNC
+          mounts its network drives once at power-on and holds them (HEROS keeps them in
+          its mount table with an Auto column for exactly that), so the machine that
+          matters is always an established connection. Measured on the device: after the
+          flip, with `read only = yes` in smb.conf and a reload sent, the machine went on
+          saving quite happily.
+
+          `smbcontrol close-share` forces a fresh tree connect and does stop the writes,
+          but it left the client's mount unusable — reads and directory listings failed
+          with EIO and did not recover. Reading is the one thing the machine must keep,
+          so that cure is worse than the disease.
+
+          A restart is safe because of how a control reacts to losing the connection:
+          pulling the network cable mid-session and plugging it back in produced a brief
+          stall and nothing else — the share reconnected by itself and the operator
+          carried on. That is a `hard` mount's behaviour, and an smbd restart is the
+          gentler version of the same event, over in a second or two rather than however
+          long it takes to find the other end of a cable. The reconnect brings a new tree
+          connect, which is what finally picks up the read-only flag.
+
+          Only on a flip. Failover is an exceptional state and a rare one; every ordinary
+          config change still takes the reload below.
+        */
         if (samba.reconcile()) {
-          samba.reload();
+          samba.restart();
         }
         events.publish({
           type: 'failover',

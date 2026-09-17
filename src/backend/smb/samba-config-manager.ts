@@ -196,31 +196,17 @@ export class SambaConfigManager {
   }
 
   /**
-   * Re-read `smb.conf` without dropping established sessions.
-   *
-   * What a failover flip needs: `read only` is a per-share parameter smbd picks up on a
-   * reload, and the alternative would cut every machine's SMB session — including one
-   * that is mid-read on a share that is perfectly healthy — to change a flag on a
-   * different share. A machine reading a program when its share goes read-only keeps
-   * reading it; the next write is what gets refused.
-   */
-  reload(): void {
-    try {
-      this.invoke({ verb: 'reload-samba', mode: 'reload' });
-    } catch (error) {
-      this.logger?.error(
-        { error: error instanceof Error ? error.message : String(error) },
-        'could not reload Samba',
-      );
-    }
-  }
-
-  /**
    * Restart smbd rather than reload it.
    *
    * `interfaces` and `bind interfaces only` are read at startup; smbd will not rebind
    * on a reload. A TNC-side NIC change therefore needs a restart, or smbd keeps
    * listening on the card the operator just moved away from.
+   *
+   * A failover flip needs one too, for a different reason: `read only` is applied when a
+   * client connects to the share, and a control holds its mount from power-on, so a
+   * reload never reaches it. There was a `reload()` here for that case and it did not
+   * work — see the comment at the failover wiring in `server.ts`. The helper still
+   * accepts `mode: 'reload'`; nothing in this service asks for it any more.
    */
   restart(): void {
     try {
