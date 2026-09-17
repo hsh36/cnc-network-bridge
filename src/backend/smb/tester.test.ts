@@ -1,5 +1,6 @@
 import {
   classifyFailure,
+  defaultRunner,
   type CommandOutput,
   FAILURE_RULES,
   parseAuthMethod,
@@ -304,6 +305,55 @@ describe('parseSigning and parseEncryption', () => {
 // ---------------------------------------------------------------------------
 // End-to-end
 // ---------------------------------------------------------------------------
+
+/**
+ * The real runner, not the scripted one — these two guards live in `defaultRunner`
+ * itself, and a fake runner cannot prove either.
+ *
+ * `node` stands in for `smbclient`: what matters is what the child process is handed,
+ * and running the test binary is portable in a way `printenv` is not.
+ */
+describe('defaultRunner', () => {
+  it('always defines PASSWD, even when no password was given', async () => {
+    /*
+      Given `-U user` and no password, smbclient prompts and waits. On a service that
+      wait runs to the timeout, and the timeout is then reported as "the server did not
+      answer" with advice about firewall DROP rules — for a server that was reachable all
+      along. Found while testing a saved share, where the form sends the username and an
+      empty password field because that field means "set a new one".
+    */
+    const result = await defaultRunner(
+      [process.execPath, '-e', 'process.stdout.write(typeof process.env.PASSWD)'],
+      { timeoutMs: 10_000 },
+    );
+
+    expect(result.stdout).toBe('string');
+  });
+
+  it('passes the password through when there is one', async () => {
+    const result = await defaultRunner(
+      [process.execPath, '-e', 'process.stdout.write(process.env.PASSWD ?? "")'],
+      { password: 'hunter2', timeoutMs: 10_000 },
+    );
+
+    expect(result.stdout).toBe('hunter2');
+  });
+
+  it('gives a child that reads stdin an immediate EOF rather than a wait', async () => {
+    // The second guard: even if a prompt slips through, there is nothing to wait for.
+    const result = await defaultRunner(
+      [
+        process.execPath,
+        '-e',
+        'let n=0;process.stdin.on("data",()=>{n++});process.stdin.on("end",()=>process.stdout.write("eof:"+n));',
+      ],
+      { timeoutMs: 10_000 },
+    );
+
+    expect(result.stdout).toBe('eof:0');
+    expect(result.timedOut).toBe(false);
+  });
+});
 
 describe('testSmbConnection', () => {
   it('reports a structured success with dialect, shares, free space and writability', async () => {

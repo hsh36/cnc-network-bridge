@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { type ShareSmbVersion } from '../../shared';
-import { useTranslation } from '../hooks/useTranslation';
+import { useLanguage, useTranslation } from '../hooks/useTranslation';
 import { ApiError, api } from '../lib/api-client';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
@@ -82,6 +82,7 @@ export function ShareSides({
   passwordStored = false,
 }: ShareSidesProps): JSX.Element {
   const t = useTranslation('shares');
+  const { language } = useLanguage();
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string }>();
 
@@ -101,11 +102,21 @@ export function ShareSides({
       .then((result) => {
         setTestResult({
           ok: result.success,
-          // The tester classifies the failure into something actionable rather than
-          // passing smbclient's output through, and it already speaks both languages.
+          /*
+            The tester classifies the failure into something actionable rather than
+            passing smbclient's output through, and it speaks both languages — so the
+            answer has to be picked in the language the operator is reading. It was
+            hard-coded to `.de`, which gave an English interface a German diagnosis.
+
+            A successful test with no dialect says so in words rather than printing a
+            question mark: smbclient only reports the negotiated dialect on some paths,
+            and "Connected. Dialect: ?" reads like a fault in a result that is fine.
+          */
           message: result.success
-            ? t('test_ok', { dialect: result.dialect ?? '?' })
-            : [result.message.de, result.remediation?.de].filter(Boolean).join(' '),
+            ? result.dialect === undefined || result.dialect === null
+              ? t('test_ok_no_dialect')
+              : t('test_ok', { dialect: result.dialect })
+            : [result.message[language], result.remediation?.[language]].filter(Boolean).join(' '),
         });
       })
       .catch((err: unknown) => {

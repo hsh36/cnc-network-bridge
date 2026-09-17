@@ -619,7 +619,8 @@
     "machine_password_stored": "Ein Passwort ist gespeichert. Leer lassen, um es zu behalten.",
     "sync_settings_title": "Synchronisationsverhalten",
     "sync_settings_hint": "Werte, die für die ganze Bridge gelten. Alles, was sich je Freigabe unterscheiden kann, steht in deren eigenen Einstellungen.",
-    "machine_path_preview": "Maschinen binden \\\\<Bridge>\\{name} ein"
+    "machine_path_preview": "Maschinen binden \\\\<Bridge>\\{name} ein",
+    "test_ok_no_dialect": "Verbunden."
   },
   "security": {
     "certificate_title": "Zertifikat der Weboberfläche",

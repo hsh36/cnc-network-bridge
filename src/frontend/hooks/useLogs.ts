@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type LogEntry, type LogLevel, type LogSource } from '../../shared';
+import { API_BASE_PATH, type LogEntry, type LogLevel, type LogSource } from '../../shared';
 
 export interface LogsFilter {
   readonly level: LogLevel | '';
@@ -33,6 +33,13 @@ export interface UseLogsResult {
 
 /**
  * Manages log state with optional SSE live tail.
+ *
+ * Both URLs come from `API_BASE_PATH` rather than being written out here. They were
+ * written out here, as `/api/logs` and `/api/logs/stream`, and the API lives under
+ * `/api/v1` — so the fetch 404'd, the stream 404'd, and the log page showed an empty
+ * list above a red "Live stream disconnected". It was never the stream's fault. This is
+ * the only place in the frontend that assembles an API path by hand; everything else
+ * goes through `api()`, which is why nothing else had the bug.
  *
  * When `live` is true, connects to `/logs/stream` and appends new entries.
  * The list can be paused to allow reading without new events interrupting.
@@ -73,7 +80,7 @@ export function useLogs(filter: LogsFilter, options: UseLogsOptions = {}): UseLo
     setError(undefined);
     try {
       const query = buildQuery();
-      const response = await fetch(`/api/logs?${query}`, { credentials: 'include' });
+      const response = await fetch(`${API_BASE_PATH}/logs?${query}`, { credentials: 'include' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = (await response.json()) as {
         ok: boolean;
@@ -100,7 +107,9 @@ export function useLogs(filter: LogsFilter, options: UseLogsOptions = {}): UseLo
       return;
     }
 
-    const source = new EventSource(`/api/logs/stream?${buildQuery()}`, { withCredentials: true });
+    const source = new EventSource(`${API_BASE_PATH}/logs/stream?${buildQuery()}`, {
+      withCredentials: true,
+    });
     sourceRef.current = source;
 
     source.onmessage = (evt: MessageEvent<string>) => {

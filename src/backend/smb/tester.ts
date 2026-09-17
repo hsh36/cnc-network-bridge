@@ -56,6 +56,19 @@ export const SMBCLIENT_PATH = '/usr/bin/smbclient';
  * A non-zero exit is a normal outcome here — it is how `smbclient` reports every
  * failure this module exists to classify — so it resolves rather than rejects, and the
  * caller reads `code` alongside the output.
+ *
+ * ## `PASSWD` is always set, and stdin is always closed
+ *
+ * Given `-U user` and no password, `smbclient` prompts — `Password for [DOMAIN\user]:`
+ * — and waits. With stdin inherited from a service, that wait lasts until the timeout,
+ * and the timeout is then reported as "the server did not answer", complete with advice
+ * about firewall DROP rules. Found on a bridge whose server was reachable the whole
+ * time: testing a saved share sends the username from the form and no password, because
+ * the password field on an edit means "set a new one" and is empty.
+ *
+ * Two independent guards, because either alone would be enough and both are free: an
+ * empty `PASSWD` makes the prompt unnecessary, and a closed stdin makes it pointless.
+ * What comes back is an authentication failure, which is both true and actionable.
  */
 export const defaultRunner: SmbRunner = (argv, options) =>
   new Promise<CommandOutput>((resolve) => {
@@ -64,7 +77,7 @@ export const defaultRunner: SmbRunner = (argv, options) =>
       resolve({ stdout: '', stderr: 'no command', code: -1, timedOut: false });
       return;
     }
-    execFile(
+    const child = execFile(
       command,
       args,
       {
@@ -76,7 +89,8 @@ export const defaultRunner: SmbRunner = (argv, options) =>
           // Forces machine-parseable English regardless of the host locale. Parsing
           // `smbclient` output translated into German would be a delightful bug.
           LC_ALL: 'C',
-          ...(options.password === undefined ? {} : { PASSWD: options.password }),
+          // Always present: an absent PASSWD is what makes smbclient prompt.
+          PASSWD: options.password ?? '',
         },
       },
       (error, stdout, stderr) => {
@@ -89,6 +103,9 @@ export const defaultRunner: SmbRunner = (argv, options) =>
         });
       },
     );
+    // `execFile` has no stdio option, so the pipe is closed after the fact. Ending it
+    // gives any prompt that still slips through an immediate EOF rather than a wait.
+    child.stdin?.end();
   });
 
 // ---------------------------------------------------------------------------
