@@ -19,7 +19,7 @@ import { AuditLog, installAuditGuards } from '../security/audit-log';
 import { BlobStore } from '../versioning/blob-store';
 import { VersionStore } from '../versioning/version-store';
 import { AuthManager } from './auth';
-import { reissueCertificateForHostname } from './certificate-service';
+import { certificateNamesFor, reissueCertificate } from './certificate-service';
 import { type AppContext } from './context';
 import { EventBus } from './event-bus';
 import {
@@ -123,11 +123,80 @@ afterEach(() => {
   cleanupTmpDbs();
 });
 
-describe('reissueCertificateForHostname', () => {
+describe('certificateNamesFor', () => {
+  it('uses the hostname when no certificate name is configured', () => {
+    expect(certificateNamesFor('', 'hsh-smbbridge01')).toEqual({
+      commonName: 'hsh-smbbridge01',
+      sans: ['hsh-smbbridge01'],
+    });
+  });
+
+  it('prefers the configured name, which is the whole point of the setting', () => {
+    // Once a site publishes a DNS record, that is the name in the address bar and the
+    // machine's own idea of what it is called has stopped being the answer.
+    const names = certificateNamesFor('smb-bridge.handling-systems.ch', 'hsh-smbbridge01');
+
+    expect(names.commonName).toBe('smb-bridge.handling-systems.ch');
+    // The hostname stays a SAN: the short name still resolves on the local segment, and
+    // an operator part-way through a migration will use both.
+    expect(names.sans).toEqual(['smb-bridge.handling-systems.ch', 'hsh-smbbridge01']);
+  });
+
+  it("carries the caller's extras and drops duplicates", () => {
+    const names = certificateNamesFor('bridge.example.com', 'bridge.example.com', [
+      '10.0.0.5',
+      'bridge.example.com',
+    ]);
+
+    expect(names.sans).toEqual(['bridge.example.com', '10.0.0.5']);
+  });
+
+  it('answers with nothing to aim at when neither name exists', () => {
+    expect(certificateNamesFor('', '')).toEqual({ commonName: '', sans: [] });
+  });
+});
+
+describe('reissueCertificate', () => {
+  it('issues for the configured name rather than the hostname', () => {
+    saveCertificateMaterial(certDir, generateSelfSignedCertificate({ commonName: 'old-name' }));
+    ctx.config.set('security', {
+      ...ctx.config.get('security'),
+      certificateName: 'smb-bridge.handling-systems.ch',
+    });
+
+    const outcome = reissueCertificate(ctx, 'hsh-smbbridge01');
+
+    expect(outcome.reason).toBe('reissued');
+    expect(outcome.info?.subject).toContain('smb-bridge.handling-systems.ch');
+    expect(outcome.info?.subjectAltNames).toEqual(
+      expect.arrayContaining(['smb-bridge.handling-systems.ch', 'hsh-smbbridge01']),
+    );
+  });
+
+  it('does not let a rename override a configured certificate name', () => {
+    // The appliance is renamed while its certificate deliberately says
+    // smb-bridge.example.com. The new hostname joins the alternative names; it must not
+    // become the subject, or the DNS name people type stops being the primary one.
+    ctx.config.set('security', {
+      ...ctx.config.get('security'),
+      certificateName: 'smb-bridge.example.com',
+    });
+    saveCertificateMaterial(
+      certDir,
+      generateSelfSignedCertificate({ commonName: 'smb-bridge.example.com' }),
+    );
+
+    const outcome = reissueCertificate(ctx, 'renamed-host');
+
+    expect(outcome.reason).toBe('reissued');
+    expect(outcome.info?.subject).toContain('smb-bridge.example.com');
+    expect(outcome.info?.subjectAltNames).toContain('renamed-host');
+  });
+
   it('issues a certificate naming the new host, and puts it live before it hits disk', () => {
     saveCertificateMaterial(certDir, generateSelfSignedCertificate({ commonName: 'old-name' }));
 
-    const outcome = reissueCertificateForHostname(ctx, 'new-name', ['172.16.35.70']);
+    const outcome = reissueCertificate(ctx, 'new-name', ['172.16.35.70']);
 
     expect(outcome.reason).toBe('reissued');
     expect(outcome.info?.subject).toContain('new-name');
@@ -147,7 +216,7 @@ describe('reissueCertificateForHostname', () => {
     const material = caSignedMaterial();
     saveCertificateMaterial(certDir, material);
 
-    const outcome = reissueCertificateForHostname(ctx, 'new-name');
+    const outcome = reissueCertificate(ctx, 'new-name');
 
     expect(outcome.reason).toBe('custom_certificate');
     expect(reloaded).toHaveLength(0);
@@ -160,14 +229,14 @@ describe('reissueCertificateForHostname', () => {
   it('does nothing when the certificate already speaks for the name', () => {
     saveCertificateMaterial(certDir, generateSelfSignedCertificate({ commonName: 'same-name' }));
 
-    expect(reissueCertificateForHostname(ctx, 'same-name').reason).toBe('already_covered');
+    expect(reissueCertificate(ctx, 'same-name').reason).toBe('already_covered');
     expect(reloaded).toHaveLength(0);
   });
 
   it('matches the name case-insensitively, the way a host name compares', () => {
     saveCertificateMaterial(certDir, generateSelfSignedCertificate({ commonName: 'Bridge-01' }));
 
-    expect(reissueCertificateForHostname(ctx, 'bridge-01').reason).toBe('already_covered');
+    expect(reissueCertificate(ctx, 'bridge-01').reason).toBe('already_covered');
   });
 
   it('reissues for a new address even when the name is unchanged', () => {
@@ -177,7 +246,7 @@ describe('reissueCertificateForHostname', () => {
     // stale name, one field over.
     saveCertificateMaterial(certDir, generateSelfSignedCertificate({ commonName: 'bridge-01' }));
 
-    const outcome = reissueCertificateForHostname(ctx, 'bridge-01', ['10.20.30.40']);
+    const outcome = reissueCertificate(ctx, 'bridge-01', ['10.20.30.40']);
 
     expect(outcome.reason).toBe('reissued');
     expect(outcome.info?.subjectAltNames).toContain('10.20.30.40');
@@ -196,7 +265,7 @@ describe('reissueCertificateForHostname', () => {
       }),
     );
 
-    const outcome = reissueCertificateForHostname(ctx, 'new-name', ['10.20.30.40']);
+    const outcome = reissueCertificate(ctx, 'new-name', ['10.20.30.40']);
 
     expect(outcome.reason).toBe('reissued');
     expect(outcome.info?.subjectAltNames).toEqual(
@@ -215,7 +284,7 @@ describe('reissueCertificateForHostname', () => {
     saveCertificateMaterial(certDir, previous);
     reloadFails = true;
 
-    const outcome = reissueCertificateForHostname(ctx, 'new-name');
+    const outcome = reissueCertificate(ctx, 'new-name');
 
     expect(outcome.reason).toBe('failed');
     // The invariant the whole ordering exists for: a refused swap changes no file.
@@ -225,7 +294,7 @@ describe('reissueCertificateForHostname', () => {
   it('reports rather than throws when there is no certificate to bring up to date', () => {
     expect(existsSync(join(certDir, 'cert.pem'))).toBe(false);
 
-    expect(reissueCertificateForHostname(ctx, 'new-name').reason).toBe('no_certificate');
+    expect(reissueCertificate(ctx, 'new-name').reason).toBe('no_certificate');
   });
 
   it('never throws, so a rename cannot be reported as a failed network change', () => {
@@ -235,7 +304,7 @@ describe('reissueCertificateForHostname', () => {
     const detached: AppContext = { ...ctx };
     delete detached.httpsManager;
 
-    expect(reissueCertificateForHostname(detached, 'new-name').reason).toBe('failed');
+    expect(reissueCertificate(detached, 'new-name').reason).toBe('failed');
   });
 
   it('keeps the validity span of the certificate it replaces', () => {
@@ -244,7 +313,7 @@ describe('reissueCertificateForHostname', () => {
       generateSelfSignedCertificate({ commonName: 'old-name', validityYears: 2 }),
     );
 
-    const outcome = reissueCertificateForHostname(ctx, 'new-name');
+    const outcome = reissueCertificate(ctx, 'new-name');
 
     const days = ((outcome.info?.notAfter ?? 0) - (outcome.info?.notBefore ?? 0)) / 86_400;
     expect(days).toBeGreaterThan(700);
@@ -254,7 +323,7 @@ describe('reissueCertificateForHostname', () => {
   it('treats an empty hostname as nothing to do', () => {
     saveCertificateMaterial(certDir, generateSelfSignedCertificate({ commonName: 'old-name' }));
 
-    expect(reissueCertificateForHostname(ctx, '').reason).toBe('already_covered');
+    expect(reissueCertificate(ctx, '').reason).toBe('already_covered');
     expect(reloaded).toHaveLength(0);
   });
 });

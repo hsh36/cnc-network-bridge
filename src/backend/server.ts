@@ -34,6 +34,7 @@ import { createApp } from './web/app';
 import { AuthManager } from './web/auth';
 import { type AppContext } from './web/context';
 import { EventBus } from './web/event-bus';
+import { certificateNamesFor, reissueCertificate } from './web/certificate-service';
 import { DEFAULT_TLS_DIR, HttpsServerManager, ensureCertificate } from './web/https-setup';
 
 /**
@@ -388,12 +389,24 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
       firewall.apply(service.config.get('network'));
     });
 
-    // Named after the host, not after the library's `smb-bridge.local` default: the
-    // operator browses to the name they gave the appliance, and a certificate that does
-    // not carry it makes the browser's warning permanent rather than one-off. Only for
-    // the *first* certificate — an existing one is loaded untouched, including one the
-    // operator uploaded. A later rename is handled by `reissueCertificateForHostname`.
-    const material = ensureCertificate(paths.certDir, { commonName: hostname() });
+    /*
+      The certificate this process will serve, named after what the appliance answers to.
+
+      Two steps, because they cover different holes. `ensureCertificate` makes a first
+      certificate on a bridge that has none — with the right name, rather than the
+      library's `smb-bridge.local` default.
+
+      The reconcile after it is for every bridge that already has one. An appliance
+      installed before the name was got right, or one whose certificate name has just been
+      configured, holds a certificate that does not carry the name people type; without
+      this, the browser's warning is permanent rather than one-off and the only cure is
+      knowing to press a button on a page nobody visits. It is a no-op when the names
+      already match, and it never touches a CA-signed certificate.
+    */
+    const initial = ensureCertificate(paths.certDir, {
+      commonName: certificateNamesFor(service.config.get('security').certificateName, hostname())
+        .commonName,
+    });
 
     /*
       Failover, and the timer that feeds it.
@@ -479,10 +492,31 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
       options.staticDir === undefined ? {} : { staticDir: options.staticDir },
     );
     const https = HttpsServerManager.create(app, {
-      material,
+      material: initial,
       tlsMin: service.config.get('security').tlsMin,
     });
     context.httpsManager = https;
+
+    /*
+      Now that the context owns a hot-swappable listener, bring the names up to date.
+
+      After `httpsManager` is set, because `installCertificate` refuses to persist a
+      certificate it cannot put into service — writing one the running process had not
+      accepted is the failure mode that ordering exists to prevent. The swap costs
+      nothing here: no client has connected yet.
+    */
+    reissueCertificate(context, hostname());
+
+    /*
+      And again whenever the operator changes the name.
+
+      Saving a certificate name that the certificate then ignores until the next reboot
+      is a setting that does not work. Idempotent, so the other fields in the section can
+      be saved without side effects.
+    */
+    service.config.onSectionChange('security', () => {
+      reissueCertificate(context, hostname());
+    });
 
     const heartbeat = setInterval(() => {
       events.publish({ type: 'heartbeat', ts: Date.now() });

@@ -2,7 +2,7 @@ import { Router } from 'express';
 
 import { applyNetworkSideRequestSchema, type CertificateReissueOutcome } from '../../../shared';
 import { NetworkApplyError, NetworkApplyService } from '../../network/apply-service';
-import { reissueCertificateForHostname } from '../certificate-service';
+import { reissueCertificate } from '../certificate-service';
 import { type AppContext } from '../context';
 import { HttpError } from '../envelope';
 import { ok, requireCsrf, requireSession } from '../middleware';
@@ -81,6 +81,11 @@ export function networkApplyRoutes(ctx: AppContext): Router {
 /**
  * Keeps the self-signed certificate naming the host the appliance now answers to.
  *
+ * A configured certificate name outranks the new hostname — see `certificateNamesFor`.
+ * Renaming a box whose certificate deliberately says `smb-bridge.example.com` must not
+ * quietly reissue it for `hsh-smbbridge01`; the new hostname joins the alternative names
+ * instead.
+ *
  * Runs *after* the apply, deliberately. The rename has already happened by then and is
  * not part of what the revert timer would undo, so there is no state to be consistent
  * with beyond "what is the machine called now". Swapping the certificate does not drop
@@ -95,7 +100,7 @@ function certificateFor(
   if (renamedTo === null) {
     return null;
   }
-  return reissueCertificateForHostname(
+  return reissueCertificate(
     ctx,
     renamedTo.hostname,
     renamedTo.address === null ? [] : [renamedTo.address],

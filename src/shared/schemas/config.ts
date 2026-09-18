@@ -465,6 +465,20 @@ export const tlsVersionSchema = z.enum(['TLSv1.2', 'TLSv1.3']);
 export type TlsVersion = z.infer<typeof tlsVersionSchema>;
 
 export const securityConfigSchema = z.object({
+  /**
+   * The name the web certificate is issued to, independent of what the host calls itself.
+   *
+   * Empty means "use the system hostname", which is right for an appliance reached by
+   * its short name. It is wrong as soon as there is a DNS record: a site that publishes
+   * `smb-bridge.example.com` browses to that, and a certificate naming `hsh-smbbridge01`
+   * fails validation for a host that is, in every other respect, exactly the one being
+   * addressed.
+   *
+   * Deliberately not derived from `network.lan.hostname`. The two answer different
+   * questions — what the machine is called, and what people type — and tying them
+   * together means an operator cannot fix the second without changing the first.
+   */
+  certificateName: hostnameSchema.or(z.literal('')).default(''),
   sessionIdleMin: z.number().int().min(1).max(1440).default(30),
   sessionAbsoluteH: z.number().int().min(1).max(168).default(12),
   loginMaxAttempts: z.number().int().min(1).max(100).default(5),

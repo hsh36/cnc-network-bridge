@@ -7,7 +7,7 @@ import {
   uploadCertificateRequestSchema,
   type CertificateInfo,
 } from '../../../shared';
-import { installCertificate } from '../certificate-service';
+import { certificateNamesFor, installCertificate } from '../certificate-service';
 import { type AppContext } from '../context';
 import { HttpError } from '../envelope';
 import { ok, requireCsrf, requireSession } from '../middleware';
@@ -84,10 +84,14 @@ export function certificateRoutes(ctx: AppContext): Router {
 
   router.post('/certificates/regenerate', requireSession(ctx), requireCsrf(ctx), (req, res) => {
     const body = regenerateCertificateRequestSchema.parse(req.body ?? {});
+    // The configured name, falling back to the hostname — the same rule the startup and
+    // rename paths follow. Regenerating by hand used to be the one way to get a
+    // certificate that disagreed with the other two.
+    const names = certificateNamesFor(ctx.config.get('security').certificateName, hostname());
     const material = generateSelfSignedCertificate({
-      commonName: hostname(),
+      commonName: names.commonName,
       validityYears: body.validityYears,
-      additionalSans: body.additionalSans,
+      additionalSans: [...names.sans, ...body.additionalSans],
     });
 
     const info = installCertificate(ctx, material, 'certificates.regenerate', req.ip);

@@ -53,6 +53,25 @@ export function SecuritySettings(): JSX.Element {
 
   return (
     <div className="flex flex-col gap-4">
+      {/*
+        First, and above the session fields, because it is the one setting on this page an
+        operator comes looking for: the name in the address bar has to be the name on the
+        certificate, and on a site with a DNS record that is not the machine's hostname.
+      */}
+      <Input
+        id="certificateName"
+        label={t('certificate_name')}
+        hint={t('certificate_name_hint')}
+        placeholder={t('certificate_name_placeholder')}
+        value={form.certificateName}
+        onChange={(e) => {
+          setForm({ ...form, certificateName: e.target.value.trim() });
+          setIsDirty(true);
+        }}
+        error={errors.certificateName}
+        className="w-full sm:w-96"
+      />
+
       <Input
         id="sessionIdleMin"
         label={t('session_idle')}

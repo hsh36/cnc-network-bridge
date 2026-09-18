@@ -52,6 +52,9 @@ describe('configuration defaults', () => {
 
   it('matches §6 for the security section', () => {
     expect(configSectionSchemas.security.parse({})).toEqual({
+      // Empty means "use the appliance hostname" — a default that names a specific host
+      // would be wrong on every appliance but the one it was written for.
+      certificateName: '',
       sessionIdleMin: 30,
       sessionAbsoluteH: 12,
       loginMaxAttempts: 5,
