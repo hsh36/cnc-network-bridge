@@ -12,6 +12,7 @@ import {
   execute,
   type FilesystemPort,
   type HandlerDeps,
+  MACHINE_ACCOUNT_MARKER,
   NET_REVERT_UNIT,
   NFT_RULESET_PATH,
   nodeFilesystem,
@@ -40,13 +41,38 @@ import { type PrivilegedRequest, validateRequest, type ValidateOptions } from '.
 
 const OPTIONS: ValidateOptions = { listInterfaces: () => ['lo', 'eth0', 'eth1'] };
 
+/**
+ * A plausible `/etc/passwd`, seeded into every harness.
+ *
+ * `set-samba-user` reads it to decide whether an account is one this product created, so
+ * a test running against an empty tree would exercise the "cannot tell" branch rather
+ * than the behaviour under test. `paul` is here to be the account nothing may touch.
+ */
+const BASE_PASSWD = [
+  'root:x:0:0:root:/root:/bin/bash',
+  'daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin',
+  'nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin',
+  'smbbridge:x:997:997::/nonexistent:/usr/sbin/nologin',
+  'paul:x:1000:1000:Paul Weber:/home/paul:/bin/bash',
+  '',
+].join('\n');
+
 /** Records every write, and answers reads from an in-memory tree. */
 class FakeFs implements FilesystemPort {
-  readonly files = new Map<string, string>();
+  readonly files = new Map<string, string>([['/etc/passwd', BASE_PASSWD]]);
   readonly directories = new Set<string>();
   readonly shredded: string[] = [];
   readonly removed: string[] = [];
   readonly modes = new Map<string, number>();
+
+  /** Appends an account, so a test can say "this one already exists, and whose it is". */
+  addAccount(name: string, gecos: string): void {
+    const uid = 1100 + this.files.get('/etc/passwd')!.split('\n').length;
+    this.files.set(
+      '/etc/passwd',
+      `${this.files.get('/etc/passwd') ?? ''}${name}:x:${String(uid)}:997:${gecos}:/nonexistent:/usr/sbin/nologin\n`,
+    );
+  }
 
   exists(path: string): boolean {
     return this.files.has(path) || this.directories.has(path);
@@ -1202,6 +1228,7 @@ describe('set-samba-user', () => {
     // The other order leaves an smbpasswd entry pointing at a uid that no longer
     // resolves, which makes every later call on that name fail.
     const h = harness();
+    h.fs.addAccount('tnc-werkstatt', MACHINE_ACCOUNT_MARKER);
 
     execute(build({ ...REQUEST, remove: true }), h.deps);
 
@@ -1216,6 +1243,62 @@ describe('set-samba-user', () => {
     h.failWhen(() => true, { status: 1 });
 
     expect(() => execute(build({ ...REQUEST, remove: true }), h.deps)).not.toThrow();
+    // And runs nothing at all, rather than `userdel` against a name that is not there.
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it('stamps the marker that makes an account this product’s', () => {
+    // The check that replaced the name prefix. Without the stamp, the next call cannot
+    // tell this account from an operator's own and will refuse to touch it.
+    const h = harness();
+
+    execute(build(REQUEST), h.deps);
+
+    const useradd = h.calls.find((argv) => argv[0]?.includes('useradd'));
+    expect(useradd).toContain('--comment');
+    expect(useradd).toContain(MACHINE_ACCOUNT_MARKER);
+  });
+
+  it('refuses to take over an account it did not create', () => {
+    // `useradd` answers 9 for an account that already exists, which the old code read as
+    // "fine, carry on" — and then ran `usermod --gid smbbridge` and `smbpasswd -a`
+    // against it. Harmless while names had to carry a `tnc-` prefix; with a name an
+    // operator chooses, it puts a real login one typo from being taken over.
+    const h = harness();
+
+    expect(() => execute(build({ ...REQUEST, username: 'paul' }), h.deps)).toThrow(
+      /did not create/,
+    );
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it('refuses to remove an account it did not create', () => {
+    const h = harness();
+
+    expect(() => execute(build({ ...REQUEST, username: 'paul', remove: true }), h.deps)).toThrow(
+      /did not create/,
+    );
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it('still owns the accounts an older build made under the tnc- prefix', () => {
+    // Those carry no marker — they predate it — and refusing to clean them up would
+    // strand a working login on every appliance that ever ran an older build.
+    const h = harness();
+    h.fs.addAccount('tnc-programs', '');
+
+    expect(() =>
+      execute(build({ ...REQUEST, username: 'tnc-programs', remove: true }), h.deps),
+    ).not.toThrow();
+    expect(h.calls.some((argv) => argv[0]?.includes('userdel'))).toBe(true);
+  });
+
+  it('refuses everything when it cannot read who owns what', () => {
+    // An unanswered question about whose account this is must not resolve to "go ahead".
+    const h = harness();
+    h.fs.files.delete('/etc/passwd');
+
+    expect(() => execute(build(REQUEST), h.deps)).toThrow(/did not create/);
   });
 
   it('refuses an empty password, because an account with none is not one', () => {

@@ -1,7 +1,8 @@
 import { posix } from 'node:path';
 
 import {
-  sambaAccountFor,
+  legacyMachineAccountFor,
+  machineAccountName,
   SECRET_SENTINEL,
   type CreateShareRequest,
   type Share,
@@ -81,13 +82,13 @@ function machinePasswordAad(shareId: number): string {
 }
 
 /**
- * Re-exported from `shared` so the existing backend call sites keep working.
+ * Re-exported from `shared` so the backend call sites have one import for them.
  *
- * The rule itself has to be one the configuration form can state too — it is the name an
- * operator has to type into the control — so it lives beside the share-name pattern it
- * derives from rather than here.
+ * The rules themselves have to be ones the configuration form can state too — the name
+ * is what an operator types into the control — so they live beside the share-name
+ * pattern rather than here.
  */
-export { sambaAccountFor };
+export { legacyMachineAccountFor, machineAccountName };
 
 function toShare(row: ShareRow): Share {
   return {

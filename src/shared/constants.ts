@@ -35,21 +35,36 @@ export const API_BASE_PATH = '/api/v1';
 export const SHARE_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,32}$/;
 
 /**
- * The account a machine actually logs in as, for a share of this name.
+ * The account a control actually logs in as — the operator's chosen name, normalised.
  *
- * Derived from the share name rather than from anything the operator types, and the
- * `tnc-` prefix is a security control, not decoration: the privileged helper refuses to
- * create any account that does not carry it, so nothing this product provisions can
- * collide with a real operator login.
+ * It lives in `shared` because both halves must give the same answer. The one time they
+ * did not cost a production test: the backend created `tnc-pm1` and wrote
+ * `valid users = tnc-pm1`, while the form offered a free-text "User" field whose value
+ * was never used as a name at all. An operator who typed `PM1` in both places got
+ * `mount error(13): Permission denied`, which reads as a wrong password and sends you
+ * checking the one thing that was right.
  *
- * It lives in `shared` because both halves need the same answer, and the one time they
- * did not agree cost a production test. The backend creates `tnc-pm1` and writes
- * `valid users = tnc-pm1`; the configuration form offered a free-text "User" field whose
- * value was never used as a name at all. An operator who typed `PM1` — the obvious
- * thing — and put `PM1` into the control got `mount error(13): Permission denied`, which
- * reads as a wrong password and sends you looking at the one thing that was right.
+ * Lower case, because Samba tries a supplied username and then its lower-case form: a
+ * lower-case account answers a control that sends either spelling, and an upper-case one
+ * answers only its own. Characters outside the Unix-name set become dashes rather than
+ * being dropped, so two different names cannot collapse into one account.
  */
-export function sambaAccountFor(shareName: string): string {
+export function machineAccountName(user: string): string {
+  return user
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '-')
+    .replace(/^[^a-z0-9]+/, '')
+    .slice(0, 32);
+}
+
+/**
+ * The account an older build would have created for this share.
+ *
+ * Kept only so those accounts can be cleaned up. Until 0.4.6 the name was derived from
+ * the share and forced to carry a `tnc-` prefix; an appliance that ever ran such a build
+ * still has one per share, and nothing else would ever look at them again.
+ */
+export function legacyMachineAccountFor(shareName: string): string {
   return `tnc-${shareName.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`;
 }
 

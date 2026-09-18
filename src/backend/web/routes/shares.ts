@@ -172,7 +172,14 @@ export function sharesRoutes(ctx: AppContext): Router {
     const id = idParam(req.params.id);
     const body = updateShareRequestSchema.parse(req.body);
     try {
+      // Read before the write: the machine user names a Unix account, so changing it
+      // leaves the previous one orphaned exactly as a deleted share does. Reconciliation
+      // walks the shares that exist and would never name the old account again.
+      const before = store.get(id).machineUser;
       const share = store.update(id, body);
+      if (before !== null && before !== share.machineUser) {
+        ctx.samba?.dropAccount(share.name, before);
+      }
       ctx.audit?.record({
         actor: 'admin',
         action: 'shares.update',
@@ -217,7 +224,7 @@ export function sharesRoutes(ctx: AppContext): Router {
       // takes the login with it. Doing this after the removal below would leave a
       // window in which a machine could reconnect to a share that is being deleted
       // underneath it.
-      ctx.samba?.dropAccount(share.name);
+      ctx.samba?.dropAccount(share.name, share.machineUser);
       ctx.samba?.reconcile();
 
       // Awaited, unlike every other caller of reconcile: it is what stops this share's

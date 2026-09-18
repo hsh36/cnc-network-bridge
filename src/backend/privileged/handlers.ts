@@ -1025,6 +1025,68 @@ function osUpdate(request: OsUpdateRequest, deps: HandlerDeps, log: CommandLog):
 // ---------------------------------------------------------------------------
 
 /**
+ * The GECOS text stamped on every account this helper creates.
+ *
+ * This is what makes an account *ours*. Account names used to be confined to a `tnc-`
+ * prefix so they could not collide with a real login; operators have to type that name
+ * into a control, so the prefix is gone and this took over the job — and does it better,
+ * because it answers "did this product create this account" rather than "is it spelled
+ * the way we spell ours", which anyone can imitate by choosing a name.
+ */
+export const MACHINE_ACCOUNT_MARKER = 'smb-bridge machine account';
+
+/** `/etc/passwd`, read rather than shelled out to: one file, five colons, no parsing risk. */
+const PASSWD_PATH = '/etc/passwd';
+
+/**
+ * Whether an account exists, and whether this product is the one that made it.
+ *
+ * `absent` is the ordinary case for a new share. `ours` is an account carrying
+ * {@link MACHINE_ACCOUNT_MARKER}, or one left by the `tnc-` scheme that predates it —
+ * those were unquestionably ours, and refusing to clean them up would strand a login on
+ * every appliance that ever ran an older build.
+ */
+function accountOwnership(username: string, deps: HandlerDeps): 'absent' | 'ours' | 'foreign' {
+  let passwd: string;
+  try {
+    passwd = deps.fs.readText(PASSWD_PATH);
+  } catch {
+    // Unreadable /etc/passwd means the question cannot be answered, and an unanswered
+    // question about whose account this is must not resolve to "go ahead".
+    return 'foreign';
+  }
+  for (const line of passwd.split('\n')) {
+    const fields = line.split(':');
+    if (fields[0] !== username) {
+      continue;
+    }
+    if (fields[4] === MACHINE_ACCOUNT_MARKER || username.startsWith('tnc-')) {
+      return 'ours';
+    }
+    return 'foreign';
+  }
+  return 'absent';
+}
+
+/**
+ * Refuses to act on an account this product did not create.
+ *
+ * The check that replaced the name prefix, and the one that matters: `useradd` reports
+ * exit 9 for an account that already exists and the old code read that as "fine, carry
+ * on", which then ran `usermod --gid smbbridge` and `smbpasswd -a` against whatever
+ * account happened to bear that name. With arbitrary names now allowed, that would put a
+ * real login one typo away from being re-grouped, given an SMB password, or deleted.
+ */
+function assertAccountIsOurs(username: string, deps: HandlerDeps): void {
+  if (accountOwnership(username, deps) === 'foreign') {
+    throw new PrivilegedExecutionError(
+      'set-samba-user',
+      `refusing to touch "${username}": it is an existing account this bridge did not create`,
+    );
+  }
+}
+
+/**
  * The Unix account behind a Samba one.
  *
  * `--system` with no home, no shell and a locked password. Samba refuses an entry for a
@@ -1046,6 +1108,10 @@ function ensureUnixAccount(username: string, deps: HandlerDeps, log: CommandLog)
       // like a broken bridge rather than a permissions mistake.
       '--gid',
       SERVICE_GROUP,
+      // Stamps the account as this product's, which is what every later call checks
+      // before it is willing to change or remove it.
+      '--comment',
+      MACHINE_ACCOUNT_MARKER,
       username,
     ],
     { allowFailure: true },
@@ -1073,10 +1139,27 @@ function setSambaUser(
   const smbpasswd = deps.resolve('smbpasswd');
 
   if (request.remove) {
+    const ownership = accountOwnership(request.username, deps);
+    if (ownership === 'foreign') {
+      // A removal is the one call here with no undo, so it refuses rather than shrugging.
+      throw new PrivilegedExecutionError(
+        'set-samba-user',
+        `refusing to remove "${request.username}": it is an existing account this bridge did not create`,
+      );
+    }
+    if (ownership === 'absent') {
+      // Nothing to do, and saying so beats running `userdel` against a name that is not
+      // there. Callers remove idempotently — a share whose account was never created is
+      // the normal case, not an error.
+      return {
+        verb: 'set-samba-user',
+        commands: log.entries,
+        detail: { username: request.username, removed: false, reason: 'absent' },
+      };
+    }
     // Samba first, then Unix: the reverse order leaves an smbpasswd entry pointing at a
     // uid that no longer resolves, which makes every later smbpasswd call on that name
-    // fail. Both are allowed to fail — removing a share whose account was never created
-    // must not error.
+    // fail. Both are allowed to fail — a half-created account must still come apart.
     log.exec([smbpasswd, '-x', request.username], { allowFailure: true });
     log.exec([deps.resolve('userdel'), request.username], { allowFailure: true });
     return {
@@ -1086,6 +1169,7 @@ function setSambaUser(
     };
   }
 
+  assertAccountIsOurs(request.username, deps);
   ensureUnixAccount(request.username, deps, log);
 
   // `-s` reads the password from stdin, twice, and `-a` adds or updates. Passing it in

@@ -1,4 +1,10 @@
-import { CONFLICT_MODES, sambaAccountFor, SECRET_SENTINEL, SHARE_NAME_PATTERN } from './constants';
+import {
+  CONFLICT_MODES,
+  legacyMachineAccountFor,
+  machineAccountName,
+  SECRET_SENTINEL,
+  SHARE_NAME_PATTERN,
+} from './constants';
 
 describe('shared constants', () => {
   describe('SHARE_NAME_PATTERN', () => {
@@ -21,24 +27,40 @@ describe('shared constants', () => {
     });
   });
 
-  describe('sambaAccountFor', () => {
-    it('lower-cases the share name under the required prefix', () => {
-      // A share called PM1 is reached by a control logging in as tnc-pm1. The control
-      // sending PM1 is a logon failure, which mount.cifs reports as
-      // `mount error(13): Permission denied` — indistinguishable from a wrong password.
-      expect(sambaAccountFor('PM1')).toBe('tnc-pm1');
-      expect(sambaAccountFor('programs')).toBe('tnc-programs');
-      expect(sambaAccountFor('cnc-Halle2')).toBe('tnc-cnc-halle2');
+  describe('machineAccountName', () => {
+    it('keeps the operator’s name and only lower-cases it', () => {
+      // The whole point of dropping the prefix: an operator who types PM1 gets an
+      // account they can put into the control unchanged but for case.
+      expect(machineAccountName('PM1')).toBe('pm1');
+      expect(machineAccountName('werkstatt')).toBe('werkstatt');
+      expect(machineAccountName('cnc.halle2')).toBe('cnc.halle2');
     });
 
     it('produces a name the privileged helper will accept', () => {
       // The helper validates the same shape independently and refuses anything else, so
       // a name this function can emit but that one rejects is an account never created —
       // and a share nobody can log into.
-      const accepted = /^tnc-[a-z0-9][a-z0-9_-]{0,26}$/;
-      for (const name of ['PM1', 'programs', 'A_1', 'cnc-halle2', 'a'.repeat(27)]) {
-        expect(sambaAccountFor(name)).toMatch(accepted);
+      const accepted = /^[a-z0-9][a-z0-9._-]{0,31}$/;
+      for (const user of ['PM1', 'programs', 'A_1', 'cnc-halle2', '-lead', 'a'.repeat(40)]) {
+        expect(machineAccountName(user)).toMatch(accepted);
       }
+    });
+
+    it('maps unusable characters to dashes rather than dropping them', () => {
+      // Dropping would let two different names collapse onto one account, which is one
+      // control silently authenticating as another.
+      expect(machineAccountName('pm 1')).toBe('pm-1');
+      expect(machineAccountName('pm/1')).toBe('pm-1');
+      expect(machineAccountName('pm$1')).not.toBe(machineAccountName('pm1'));
+    });
+  });
+
+  describe('legacyMachineAccountFor', () => {
+    it('still names what an older build created, so it can be cleaned up', () => {
+      // Until 0.4.6 the account came from the share name and carried a `tnc-` prefix.
+      // Every appliance that ran such a build still has one per share.
+      expect(legacyMachineAccountFor('PM1')).toBe('tnc-pm1');
+      expect(legacyMachineAccountFor('programs')).toBe('tnc-programs');
     });
   });
 

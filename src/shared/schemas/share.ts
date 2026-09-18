@@ -124,7 +124,26 @@ export const createShareRequestSchema = z
     // shop wants, but defaulting to it means every share ever created is open until
     // somebody notices — a default that has to be undone is not a default.
     machineGuestOk: z.boolean().default(false),
-    machineUser: z.string().max(32).nullable().default(null),
+    /**
+     * The name a control logs in with, and now literally the Unix account behind it.
+     *
+     * Bounded here rather than left to the privileged helper, which validates the same
+     * shape independently and refuses what it does not like. Letting an unusable name be
+     * stored means a share that saves cleanly and then has no account at all — the
+     * failure appears at the machine, hours later, as a wrong password.
+     *
+     * Case is not constrained: it is normalised to lower case on the way to the account,
+     * and rejecting `PM1` would be pedantry about the obvious thing to type.
+     */
+    machineUser: z
+      .string()
+      .max(32)
+      .regex(
+        /^[A-Za-z0-9][A-Za-z0-9._-]*$/,
+        'Must start with a letter or digit and contain only letters, digits, dot, dash and underscore',
+      )
+      .nullable()
+      .default(null),
     /** AES-256-GCM at rest; never returned in plaintext by the API. */
     machinePassword: secretWriteSchema.default(''),
   })

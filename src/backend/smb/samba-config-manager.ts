@@ -1,7 +1,7 @@
 import { type ConfigManager } from '../config/config-manager';
 import { type Db, type DbLogger } from '../config/db';
 import { invokePrivileged, type HelperInvoker } from '../privileged/client';
-import { sambaAccountFor, ShareStore } from '../sync/share-store';
+import { legacyMachineAccountFor, machineAccountName, ShareStore } from '../sync/share-store';
 
 import { buildSmbConf, type SmbShareConfig } from './smb-conf';
 
@@ -91,7 +91,7 @@ export class SambaConfigManager {
         // which would silently make the account decorative.
         ...(share.machineGuestOk || share.machineUser === null
           ? {}
-          : { validUsers: [sambaAccountFor(share.name)] }),
+          : { validUsers: [machineAccountName(share.machineUser)] }),
         ...(share.excludePatterns.length > 0 ? { extraVetoFiles: share.excludePatterns } : {}),
       }));
 
@@ -123,12 +123,20 @@ export class SambaConfigManager {
    */
   private reconcileAccounts(): void {
     for (const share of this.shares.list(500, 0).items) {
-      const account = sambaAccountFor(share.name);
+      const wanted = share.machineUser === null ? undefined : machineAccountName(share.machineUser);
       try {
-        if (!share.enabled || share.machineGuestOk || share.machineUser === null) {
-          // Removing is idempotent and safe for an account that was never created; the
-          // helper allows both of its commands to fail.
-          this.invoke({ verb: 'set-samba-user', username: account, password: '', remove: true });
+        // The account an older build made for this share, if it is not also the one
+        // wanted now. Left alone it would go on resolving forever: reconciliation walks
+        // shares, and nothing would ever name that account again.
+        const legacy = legacyMachineAccountFor(share.name);
+        if (legacy !== wanted) {
+          this.removeAccount(legacy);
+        }
+
+        if (!share.enabled || share.machineGuestOk || wanted === undefined) {
+          if (wanted !== undefined) {
+            this.removeAccount(wanted);
+          }
           continue;
         }
 
@@ -138,12 +146,12 @@ export class SambaConfigManager {
           // anyone. Saying so is more use than an account nobody can log into.
           this.logger?.warn(
             { share: share.name },
-            'share has a TNC user but no password; no account was created',
+            'share has a machine user but no password; no account was created',
           );
           continue;
         }
 
-        this.invoke({ verb: 'set-samba-user', username: account, password, remove: false });
+        this.invoke({ verb: 'set-samba-user', username: wanted, password, remove: false });
       } catch (error) {
         this.logger?.error(
           { share: share.name, error: error instanceof Error ? error.message : String(error) },
@@ -154,31 +162,48 @@ export class SambaConfigManager {
   }
 
   /**
-   * Drop the Samba and Unix account a share owned, by the share's name.
+   * Remove one account, tolerating every way that can fail.
    *
-   * Reconciliation cannot do this one: {@link reconcileAccounts} walks the shares that
-   * exist, and the whole point here is that this one no longer does. Nothing would ever
-   * revisit `tnc-<name>`, so a deleted share left a login behind that still resolved —
-   * and a share later recreated under the same name would silently inherit the old
-   * password rather than the one just typed.
-   *
-   * Idempotent and non-throwing, like the rest of this class: the helper tolerates
-   * removing an account that was never created, and a share the operator asked to
-   * delete must not survive because a `userdel` failed.
+   * Removal is idempotent in the helper — an account that is not there is not an error —
+   * and the helper refuses outright anything this product did not create. Both outcomes
+   * are fine here; what must not happen is one stale account stopping the shares behind
+   * it from being reconciled.
    */
-  dropAccount(shareName: string): void {
-    const account = sambaAccountFor(shareName);
+  private removeAccount(username: string): void {
     try {
-      this.invoke({ verb: 'set-samba-user', username: account, password: '', remove: true });
+      this.invoke({ verb: 'set-samba-user', username, password: '', remove: true });
     } catch (error) {
-      this.logger?.error(
-        {
-          share: shareName,
-          account,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        'could not remove the Samba account of a deleted share',
+      this.logger?.warn(
+        { account: username, error: error instanceof Error ? error.message : String(error) },
+        'could not remove a machine account',
       );
+    }
+  }
+
+  /**
+   * Drop the accounts a share owned — the one it uses now and the one an older build gave
+   * it.
+   *
+   * Reconciliation cannot do this: {@link reconcileAccounts} walks the shares that exist,
+   * and the point here is that this one no longer does. Nothing would ever name those
+   * accounts again, so a deleted share left a login behind that still resolved — and a
+   * share recreated under the same name inherited the old password rather than the one
+   * just typed.
+   *
+   * Also the right call when the operator changes the machine user on a share that keeps
+   * existing: the old account is as orphaned then as it is after a delete.
+   *
+   * Idempotent and non-throwing, like the rest of this class: removal tolerates an
+   * account that was never created, and a share the operator asked to delete must not
+   * survive because a `userdel` failed.
+   */
+  dropAccount(shareName: string, machineUser?: string | null): void {
+    const accounts = new Set([legacyMachineAccountFor(shareName)]);
+    if (machineUser !== undefined && machineUser !== null && machineUser !== '') {
+      accounts.add(machineAccountName(machineUser));
+    }
+    for (const account of accounts) {
+      this.removeAccount(account);
     }
   }
 

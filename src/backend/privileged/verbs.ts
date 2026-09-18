@@ -778,20 +778,81 @@ export function validateHostname(verb: string, field: string, value: unknown): s
 }
 
 /**
- * A Unix account name this helper is willing to create.
+ * Accounts no request may ever name, whatever else it proves.
  *
- * Narrower than what `useradd` accepts, and deliberately so: the prefix confines every
- * account this ever makes to a namespace that cannot collide with a real operator's
- * login, and the character set rules out the leading dash that `useradd` would read as
- * an option.
+ * The helper runs `useradd`, `usermod --gid` and `userdel` as root, so a username here is
+ * an instruction to create, re-group or destroy a Unix account. This list is the floor:
+ * these names are refused before anything else is considered, so no combination of a
+ * corrupted row, a mistyped share and a marker placed by hand can reach them.
+ *
+ * It is not the main protection. That is {@link MACHINE_ACCOUNT_MARKER}, which the
+ * handler checks as root and which refuses every account this product did not create.
+ * This list is the part that still holds if that check is ever wrong.
+ */
+const RESERVED_ACCOUNTS = new Set([
+  'root',
+  'daemon',
+  'bin',
+  'sys',
+  'sync',
+  'games',
+  'man',
+  'lp',
+  'mail',
+  'news',
+  'uucp',
+  'proxy',
+  'www-data',
+  'backup',
+  'list',
+  'irc',
+  'nobody',
+  'sshd',
+  'messagebus',
+  'systemd-network',
+  'systemd-resolve',
+  'systemd-timesync',
+  'pi',
+  'admin',
+  'administrator',
+  'smbbridge',
+]);
+
+/**
+ * A Unix account name this helper is willing to create, change or remove.
+ *
+ * This used to demand a `tnc-` prefix, which confined every account to a namespace that
+ * could not collide with a real login. Sound protection, poor product: the name is what
+ * an operator types into the control, and a prefix nobody mentions is refused as
+ * `mount error(13): Permission denied` — which reads as a wrong password. It cost a
+ * production test.
+ *
+ * The prefix is gone; the protection is not, and it now guards the thing that actually
+ * matters — *whose* account this is rather than what it is called:
+ *
+ *  - the name is checked here, against {@link RESERVED_ACCOUNTS} and a character set that
+ *    rules out the leading dash `useradd` would read as an option; and
+ *  - the handler refuses, as root, any existing account not carrying the marker this
+ *    product stamps on the ones it creates.
+ *
+ * Lower case only. Samba tries a supplied username and then its lower-case form, so a
+ * lower-case account answers a control that sends either spelling; the reverse does not
+ * hold. Callers normalise, so mixed case arriving here is a caller that forgot to.
  */
 export function validateSambaUsername(verb: string, value: unknown): string {
   const name = requireString(verb, 'username', value, 32);
-  if (!/^tnc-[a-z0-9][a-z0-9_-]{0,26}$/.test(name)) {
+  if (!/^[a-z0-9][a-z0-9._-]{0,31}$/.test(name)) {
     throw new PrivilegedValidationError(
       verb,
       'username',
-      'must start with "tnc-" and contain only lowercase letters, digits, dash and underscore',
+      'must be lower case, start with a letter or digit, and contain only letters, digits, dot, dash and underscore',
+    );
+  }
+  if (RESERVED_ACCOUNTS.has(name)) {
+    throw new PrivilegedValidationError(
+      verb,
+      'username',
+      `"${name}" is a reserved system account and is never touched`,
     );
   }
   return name;

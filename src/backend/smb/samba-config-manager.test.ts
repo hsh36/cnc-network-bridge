@@ -290,13 +290,29 @@ describe('TNC-side accounts', () => {
       .filter((r) => r.verb === 'set-samba-user')
       .map((r) => r as { username: string; remove: boolean });
 
-  it('creates the account a share authenticates against', () => {
+  it('creates the account under the name the operator chose', () => {
+    // Not the share name. Until 0.4.6 this field was read as a flag and the account came
+    // out as `tnc-werkstatt`, so an operator who put `cnc` into the control got
+    // `mount error(13): Permission denied` — a logon failure that reads as a wrong
+    // password.
     addShare('werkstatt', { machineGuestOk: false, machineUser: 'cnc', machinePassword: 'geheim' });
 
     manager().reconcile();
 
     expect(accountCalls()).toContainEqual(
-      expect.objectContaining({ username: 'tnc-werkstatt', remove: false }),
+      expect.objectContaining({ username: 'cnc', remove: false }),
+    );
+  });
+
+  it('removes the account an older build made for the same share', () => {
+    // Reconciliation walks shares, so nothing would ever name `tnc-werkstatt` again and
+    // it would go on resolving forever on every appliance that ran an older build.
+    addShare('werkstatt', { machineGuestOk: false, machineUser: 'cnc', machinePassword: 'geheim' });
+
+    manager().reconcile();
+
+    expect(accountCalls()).toContainEqual(
+      expect.objectContaining({ username: 'tnc-werkstatt', remove: true }),
     );
   });
 
@@ -305,7 +321,20 @@ describe('TNC-side accounts', () => {
 
     manager().reconcile();
 
-    expect(written()).toMatch(/\[werkstatt][\s\S]*?valid users\s*=\s*tnc-werkstatt/);
+    expect(written()).toMatch(/\[werkstatt][\s\S]*?valid users\s*=\s*cnc/);
+  });
+
+  it('lower-cases the name it puts in valid users and in the account', () => {
+    // Samba tries a supplied username and then its lower-case form, so a lower-case
+    // account answers a control that sends either spelling. The reverse does not hold.
+    addShare('pm1', { machineGuestOk: false, machineUser: 'PM1', machinePassword: 'geheim' });
+
+    manager().reconcile();
+
+    expect(accountCalls()).toContainEqual(
+      expect.objectContaining({ username: 'pm1', remove: false }),
+    );
+    expect(written()).toMatch(/\[pm1][\s\S]*?valid users\s*=\s*pm1/);
   });
 
   it('does not name an account on a guest share', () => {
