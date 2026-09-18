@@ -537,6 +537,11 @@ async function wire(service: Service, args: WireArgs): Promise<RunningServer> {
     // coming back convinced it protects files that anyone can now write. After the
     // shares are mounted, or there would be nothing to take a lock on.
     locks.restoreServerLocks();
+    // After the retake, so a file that is still genuinely locked has its record back and
+    // is not swept. This is the one piece of lock state that does not die with the
+    // process — a released row that never got its write permission restored is a program
+    // nobody can save until someone notices.
+    locks.sweepReadOnlyLeftovers();
     started.push(() => locks.shutdown());
 
     // Nothing had ever started the cron engine. Every schedule in the product — the

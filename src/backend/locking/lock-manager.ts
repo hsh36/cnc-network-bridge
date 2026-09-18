@@ -10,6 +10,7 @@ import { type Db, type DbLogger, type SqlValue } from '../config/db';
 import { isMountPoint } from '../smb/cifs-mount';
 
 import { ByteRangeLocker } from './byte-range';
+import { applyReadOnly, clearReadOnly } from './read-only-guard';
 import { removeSidecar, writeSidecar } from './sidecar';
 
 /**
@@ -95,6 +96,7 @@ interface LockRow {
   server_lock_kind: string;
   server_lock_ok: number;
   server_lock_error: string | null;
+  server_read_only_applied: number;
   acquired_at: number;
   expires_at: number | null;
   released_at: number | null;
@@ -297,6 +299,7 @@ export class LockManager {
     // whether or not the mount is still there — a holder for a share that vanished is a
     // process with nothing left to protect.
     this.byteRange.release(row.id);
+    this.giveWritePermissionBack(row);
 
     if (SERVER_MARKER_KINDS.has(row.server_lock_kind as ServerLockKind)) {
       const mount = this.getMountPoint(row.share_id);
@@ -416,6 +419,7 @@ export class LockManager {
           );
           return this.db.get<LockRow>('SELECT * FROM locks WHERE id = @id', { id: row.id }) ?? row;
         }
+        this.takeWritePermission(row.id, target, row.rel_path, row.share_id);
       }
 
       // The marker goes on for `byte_range` too. The lock is enforced without it, but
@@ -445,6 +449,103 @@ export class LockManager {
 
     const refreshed = this.db.get<LockRow>('SELECT * FROM locks WHERE id = @id', { id: row.id });
     return refreshed ?? row;
+  }
+
+  /**
+   * Takes the file's write permission away, and records that we were the one who did.
+   *
+   * The record is what makes the release safe. A file that was already read-only — an
+   * operator protected it on purpose — reports `applied: false`, the row keeps a 0, and
+   * nothing here will ever hand back a write bit it did not remove.
+   *
+   * A failure is a warning and nothing more. The byte-range lock is already held by this
+   * point, so the file is still better protected than it would have been; refusing the
+   * whole lock because the permission change did not land would trade a partial defence
+   * for none.
+   */
+  private takeWritePermission(
+    lockId: number,
+    target: string,
+    relPath: string,
+    shareId: number,
+  ): void {
+    const guard = applyReadOnly(target);
+    if (guard.applied) {
+      this.db.run(`UPDATE locks SET server_read_only_applied = 1 WHERE id = @id`, { id: lockId });
+      return;
+    }
+    if (!guard.ok) {
+      this.logger?.warn(
+        { shareId, relPath, error: guard.error },
+        'could not take the write permission away on the server; the file can still be ' +
+          'emptied by a client that opens it with truncation',
+      );
+    }
+  }
+
+  /**
+   * Gives the write permission back, for rows that record we took it.
+   *
+   * Runs on every way out of a lock — release, expiry, and the startup sweep — because
+   * the state this undoes is the one kind the bridge leaves behind that does not die
+   * with the process. A missed release is a program nobody can save again, which is the
+   * failure this codebase has already paid for once with orphaned lock holders.
+   */
+  private giveWritePermissionBack(row: LockRow): void {
+    if (row.server_read_only_applied !== 1) {
+      return;
+    }
+    const mount = this.getMountPoint(row.share_id);
+    if (mount === undefined || !this.isMounted(mount)) {
+      // The flag stays set on purpose. The file is still read-only on a server we cannot
+      // reach, and {@link sweepReadOnlyLeftovers} is what finds it once we can.
+      this.logger?.warn(
+        { shareId: row.share_id, relPath: row.rel_path },
+        'server share is not mounted; the write permission will be restored at the next start',
+      );
+      return;
+    }
+
+    const result = clearReadOnly(ByteRangeLocker.targetPath(mount, row.rel_path));
+    if (result.ok) {
+      this.db.run(`UPDATE locks SET server_read_only_applied = 0 WHERE id = @id`, { id: row.id });
+      return;
+    }
+    this.logger?.warn(
+      { shareId: row.share_id, relPath: row.rel_path, error: result.error },
+      'could not give the write permission back; the file stays read-only until the next start',
+    );
+  }
+
+  /**
+   * Restores write permission for locks that ended without getting that far.
+   *
+   * A release during a server outage, a process killed between the release and the
+   * chmod, a share that was unmounted at the wrong moment: each leaves a released row
+   * still claiming a read-only file. Called at startup, after the shares are mounted and
+   * after {@link restoreServerLocks}, so anything still genuinely locked has already had
+   * its flag re-established and is not swept here.
+   */
+  sweepReadOnlyLeftovers(): number {
+    const rows = this.db.all<LockRow>(
+      `SELECT * FROM locks WHERE released_at IS NOT NULL AND server_read_only_applied = 1`,
+    );
+    let cleared = 0;
+    for (const row of rows) {
+      const before = row.server_read_only_applied;
+      this.giveWritePermissionBack(row);
+      const after = this.db.get<LockRow>('SELECT * FROM locks WHERE id = @id', { id: row.id });
+      if (before === 1 && after?.server_read_only_applied === 0) {
+        cleared += 1;
+      }
+    }
+    if (cleared > 0) {
+      this.logger?.warn(
+        { cleared },
+        'gave back write permission on files whose locks had ended without it',
+      );
+    }
+    return cleared;
   }
 
   /**
@@ -484,13 +585,17 @@ export class LockManager {
         this.recordProjectionLoss(row.id, 'the share was not mounted when the bridge started');
         continue;
       }
-      const held = this.byteRange.acquire(row.id, ByteRangeLocker.targetPath(mount, row.rel_path));
+      const target = ByteRangeLocker.targetPath(mount, row.rel_path);
+      const held = this.byteRange.acquire(row.id, target);
       if (held.ok) {
         restored += 1;
         this.db.run(
           `UPDATE locks SET server_lock_ok = 1, server_lock_error = NULL WHERE id = @id`,
           { id: row.id },
         );
+        // Idempotent: a file still read-only from before the restart reports
+        // `applied: false` and the row's existing record is left as it was.
+        this.takeWritePermission(row.id, target, row.rel_path, row.share_id);
       } else {
         failed += 1;
         this.recordProjectionLoss(row.id, held.error ?? 'the lock could not be retaken');

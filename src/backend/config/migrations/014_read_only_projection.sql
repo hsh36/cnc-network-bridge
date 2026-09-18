@@ -1,0 +1,29 @@
+-- Schema v14 — remember that we took a file's write permission away
+--
+-- Wrapped in a transaction by the migration runner; this file must not open one.
+--
+-- A shared byte-range lock stops another client writing bytes. It does not stop one
+-- *opening* the file with truncate-on-open, which empties it before any write is
+-- attempted — measured on the appliance on 2026-09-18: the write was refused with
+-- NT_STATUS_FILE_LOCK_CONFLICT and the program on the server was 0 bytes afterwards.
+-- The same hole, in its other form, is an editor that saves by writing a temporary file
+-- and renaming it over the target: the lock belongs to an inode nothing points at any
+-- more.
+--
+-- The cure is to take the write permission away for the duration of the lock, which on a
+-- CIFS mount sets the DOS read-only attribute and makes the server refuse the open. That
+-- turns a silently destroyed program into a refusal the person doing it can read.
+--
+-- Which leaves one thing to remember across a restart: whether the file was already
+-- read-only before the bridge touched it. Restoring the write bit on a file an operator
+-- had deliberately protected would be its own quiet damage, so the column records only
+-- the case we caused and must undo.
+--
+--   0  we did not change this file's permissions — leave them alone on release
+--   1  we removed the write bits and must put them back
+--
+-- Deliberately not a copy of the old mode. The value that matters is "did we change it",
+-- and a stored mode invites restoring a *stale* one over whatever the file has since
+-- become.
+
+ALTER TABLE locks ADD COLUMN server_read_only_applied INTEGER NOT NULL DEFAULT 0;
