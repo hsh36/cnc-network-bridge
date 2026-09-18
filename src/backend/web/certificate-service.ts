@@ -212,10 +212,17 @@ export function reissueCertificate(
     return { reason: 'custom_certificate', info: current };
   }
 
-  // Every name, not just the primary one. Checking only the common name would call an
-  // address-only change "already covered" and send the operator to an address the
-  // certificate does not carry — the same dead end, one field over.
-  if (covers(current, sans)) {
+  // Both halves, because each catches what the other misses.
+  //
+  // The names, so an address-only change is not waved through as "already covered",
+  // sending the operator to an address the certificate does not carry.
+  //
+  // And the subject, so *clearing* the certificate name takes effect. Every wanted name
+  // is still present after that — the hostname was already a SAN — so the name check
+  // alone said "covered" and left the old DNS name standing as the subject of a
+  // certificate whose setting had just been emptied. Harmless to a browser, which
+  // validates against the SANs, and still a setting that did not do what it said.
+  if (subjectMatches(current, commonName) && covers(current, sans)) {
     return { reason: 'already_covered', info: current };
   }
 
@@ -248,6 +255,21 @@ export function reissueCertificate(
     );
     return { reason: 'failed', error: messageOf(error) };
   }
+}
+
+/**
+ * Whether the certificate's subject is already the common name we would issue for.
+ *
+ * An unreadable subject counts as a match, and that bias is deliberate. This runs at
+ * every startup and on every save of the security section; a subject this cannot parse
+ * would otherwise mean "reissue", for ever, on a loop — replacing the certificate several
+ * times a day and invalidating whatever the operator's browser had come to trust. Failing
+ * to reissue is a stale name; failing the other way is a machine that never settles.
+ */
+function subjectMatches(info: CertificateInfo, commonName: string): boolean {
+  const match = /(?:^|,\s*)CN=([^,]+)/.exec(info.subject);
+  const current = match?.[1]?.trim();
+  return current === undefined || current.toLowerCase() === commonName.toLowerCase();
 }
 
 /** Whether the certificate already speaks for every one of `wanted`. */

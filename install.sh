@@ -279,6 +279,38 @@ create_system_user() {
 # The key encrypts stored credentials (the AD service account among them). It is created
 # once and never regenerated: a new key would not fail loudly, it would turn every stored
 # credential into undecryptable bytes.
+# Stop cloud-init from renaming the appliance back
+#
+# Raspberry Pi and Debian images are seeded through cloud-init, and the seed in
+# /boot/firmware/user-data carries the name the image was built with. With
+# `preserve_hostname` at its default of false, cc_update_hostname is entitled to put that
+# name back on every boot.
+#
+# It usually does not, and the reason is a coincidence rather than a guarantee: it first
+# compares the running hostname against /var/lib/cloud/data/previous-hostname, and while
+# those two disagree it assumes a human made the change and leaves it alone. Let them
+# agree once — `cloud-init clean`, a re-seed, an image refresh — and the next boot renames
+# the appliance out from under its operator. Observed on hsh-smbbridge01 on 2026-09-18,
+# where cloud-init was already appending the seed's name to the /etc/hosts entry.
+#
+# An appliance whose identity, certificate and Samba server name all follow its hostname
+# cannot have that hostname owned by anything else.
+disable_cloud_init_hostname() {
+  command -v cloud-init > /dev/null 2>&1 || return 0
+
+  log_info "Telling cloud-init to leave the hostname alone..."
+  sudo install -d -m 0755 /etc/cloud/cloud.cfg.d ||
+    die "Failed to create /etc/cloud/cloud.cfg.d"
+  # A file of our own rather than an edit to cloud.cfg: the package owns that file and a
+  # distribution upgrade would prompt about, or quietly revert, a change made inside it.
+  printf '%s
+'     '# Written by the SMB Bridge installer.'     '# The appliance owns its hostname; cloud-init must not put the image name back.'     'preserve_hostname: true' |
+    sudo tee /etc/cloud/cloud.cfg.d/99-smb-bridge.cfg > /dev/null ||
+    die "Failed to write the cloud-init override"
+
+  log_success "cloud-init will keep the configured hostname"
+}
+
 create_runtime_dirs() {
   log_info "Creating runtime directories..."
 
@@ -571,6 +603,7 @@ main() {
   build_application
   create_system_user
   create_runtime_dirs
+  disable_cloud_init_hostname
   install_privileged_helper
   fix_permissions
   setup_audit_forwarding

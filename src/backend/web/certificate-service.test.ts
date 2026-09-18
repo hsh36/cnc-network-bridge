@@ -173,6 +173,42 @@ describe('reissueCertificate', () => {
     );
   });
 
+  it('reissues back to the hostname when the configured name is cleared', () => {
+    // The hostname is already a SAN at this point, so a check that only asked "are all
+    // the wanted names present?" said yes and left the old DNS name as the subject of a
+    // certificate whose setting had just been emptied.
+    ctx.config.set('security', {
+      ...ctx.config.get('security'),
+      certificateName: 'smb-bridge.example.com',
+    });
+    saveCertificateMaterial(
+      certDir,
+      generateSelfSignedCertificate({
+        commonName: 'smb-bridge.example.com',
+        additionalSans: ['hsh-smbbridge01'],
+      }),
+    );
+
+    ctx.config.set('security', { ...ctx.config.get('security'), certificateName: '' });
+    const outcome = reissueCertificate(ctx, 'hsh-smbbridge01');
+
+    expect(outcome.reason).toBe('reissued');
+    expect(outcome.info?.subject).toContain('hsh-smbbridge01');
+  });
+
+  it('settles: a second pass over its own output changes nothing', () => {
+    // The guard against the worst failure this check could cause. It runs at every
+    // startup and every save; a subject it disagreed with for ever would replace the
+    // certificate on a loop and invalidate whatever the operator's browser had trusted.
+    saveCertificateMaterial(certDir, generateSelfSignedCertificate({ commonName: 'old-name' }));
+
+    const first = reissueCertificate(ctx, 'bridge-01', ['10.0.0.5']);
+    expect(first.reason).toBe('reissued');
+
+    expect(reissueCertificate(ctx, 'bridge-01', ['10.0.0.5']).reason).toBe('already_covered');
+    expect(reloaded).toHaveLength(1);
+  });
+
   it('does not let a rename override a configured certificate name', () => {
     // The appliance is renamed while its certificate deliberately says
     // smb-bridge.example.com. The new hostname joins the alternative names; it must not
