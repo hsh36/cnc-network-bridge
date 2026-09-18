@@ -1,6 +1,7 @@
 import { posix } from 'node:path';
 
 import {
+  sambaAccountFor,
   SECRET_SENTINEL,
   type CreateShareRequest,
   type Share,
@@ -80,16 +81,13 @@ function machinePasswordAad(shareId: number): string {
 }
 
 /**
- * The Unix and Samba account name for a share.
+ * Re-exported from `shared` so the existing backend call sites keep working.
  *
- * Derived rather than stored: it is a function of the share name, so it cannot drift
- * out of step with it, and the `tnc-` prefix keeps every account this creates in a
- * namespace that cannot collide with a real operator login. The helper validates the
- * same shape independently.
+ * The rule itself has to be one the configuration form can state too — it is the name an
+ * operator has to type into the control — so it lives beside the share-name pattern it
+ * derives from rather than here.
  */
-export function sambaAccountFor(shareName: string): string {
-  return `tnc-${shareName.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`;
-}
+export { sambaAccountFor };
 
 function toShare(row: ShareRow): Share {
   return {

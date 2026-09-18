@@ -34,6 +34,25 @@ export const API_BASE_PATH = '/api/v1';
 /** Share names are used as filesystem paths and Samba section names, so they are tightly bounded. */
 export const SHARE_NAME_PATTERN = /^[a-zA-Z0-9_-]{1,32}$/;
 
+/**
+ * The account a machine actually logs in as, for a share of this name.
+ *
+ * Derived from the share name rather than from anything the operator types, and the
+ * `tnc-` prefix is a security control, not decoration: the privileged helper refuses to
+ * create any account that does not carry it, so nothing this product provisions can
+ * collide with a real operator login.
+ *
+ * It lives in `shared` because both halves need the same answer, and the one time they
+ * did not agree cost a production test. The backend creates `tnc-pm1` and writes
+ * `valid users = tnc-pm1`; the configuration form offered a free-text "User" field whose
+ * value was never used as a name at all. An operator who typed `PM1` — the obvious
+ * thing — and put `PM1` into the control got `mount error(13): Permission denied`, which
+ * reads as a wrong password and sends you looking at the one thing that was right.
+ */
+export function sambaAccountFor(shareName: string): string {
+  return `tnc-${shareName.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`;
+}
+
 /** Conflict resolution strategies (IMPLEMENTATION_PLAN §3.1). */
 export const CONFLICT_MODES = ['machine_wins', 'server_wins', 'last_write_wins'] as const;
 

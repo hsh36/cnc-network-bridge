@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { type ShareSmbVersion } from '../../shared';
+import { sambaAccountFor, type ShareSmbVersion } from '../../shared';
 import { useLanguage, useTranslation } from '../hooks/useTranslation';
 import { ApiError, api } from '../lib/api-client';
 import { Badge } from './ui/Badge';
@@ -287,6 +287,26 @@ export function ShareSides({
                 onChange={(e) => onChange({ machineUser: e.target.value })}
                 error={errors.machineUser}
               />
+              {/* The name the control has to be given, spelled out.
+
+                The field above does not set it: the account is derived from the share
+                name and carries a `tnc-` prefix the privileged helper insists on. An
+                operator who typed `PM1` here and `PM1` into the control got
+                `mount error(13): Permission denied` — which reads as a wrong password,
+                and sends you checking the one thing that was right. */}
+              {value.name !== '' && (
+                <div className="rounded-md border border-accent/30 bg-accent/5 p-3">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    {t('machine_login_name')}{' '}
+                    <span className="select-all font-mono font-semibold text-slate-900 dark:text-slate-100">
+                      {sambaAccountFor(value.name)}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {t('machine_login_name_hint')}
+                  </p>
+                </div>
+              )}
               <Input
                 id="shareTncPassword"
                 label={t('machine_password')}
