@@ -1,15 +1,26 @@
+import { rm } from 'node:fs/promises';
+import { posix } from 'node:path';
+
 import { Router } from 'express';
 
 import {
   createShareRequestSchema,
+  deleteShareQuerySchema,
   paginationQuerySchema,
   shareActionSchema,
   updateShareRequestSchema,
+  type ShareRuntime,
 } from '../../../shared';
-import { ShareError, ShareStore } from '../../sync/share-store';
+import { CACHE_ROOT, ShareError, ShareStore } from '../../sync/share-store';
 import { type AppContext } from '../context';
 import { HttpError } from '../envelope';
-import { ok, requireCsrf, requireSession, requireSessionOrToken } from '../middleware';
+import {
+  asyncHandler,
+  ok,
+  requireCsrf,
+  requireSession,
+  requireSessionOrToken,
+} from '../middleware';
 
 /**
  * Bring the running syncs *and* the exported shares in line with what was just written.
@@ -81,6 +92,46 @@ function toHttp(error: unknown): unknown {
   return error;
 }
 
+/**
+ * Remove a deleted share's cached copies.
+ *
+ * This is the only place in the API that deletes a directory tree, so it does not take
+ * the stored path on trust. `cache_path` is written by the store as `<root>/<name>` and
+ * is never client-supplied, and the check here says exactly that: anything else — a row
+ * edited by hand, a path that picked up a `..`, a root that moved — is refused and
+ * logged rather than removed. `root` is a parameter for the same reason: the rule is
+ * "the directory this share owns", not "whatever /srv happens to mean".
+ *
+ * A failure is logged, not raised. The share itself is already gone by this point, and
+ * answering 500 would tell the operator the deletion failed when what is actually left
+ * is a directory they can remove by hand.
+ */
+export async function purgeShareCache(
+  cachePath: string,
+  shareName: string,
+  root: string,
+  logger?: AppContext['logger'],
+): Promise<boolean> {
+  if (cachePath !== posix.join(root, shareName)) {
+    logger?.error(
+      { cachePath, expected: posix.join(root, shareName) },
+      'refusing to purge: the cache path is not the one this share owns',
+    );
+    return false;
+  }
+  try {
+    await rm(cachePath, { recursive: true, force: true });
+    logger?.info({ cachePath }, 'cached copies of the deleted share removed');
+    return true;
+  } catch (error) {
+    logger?.error(
+      { cachePath, error: error instanceof Error ? error.message : String(error) },
+      'could not remove the cached copies of the deleted share; they are left on disk',
+    );
+    return false;
+  }
+}
+
 export function sharesRoutes(ctx: AppContext): Router {
   const router = Router();
   const store = new ShareStore({ db: ctx.db, config: ctx.config });
@@ -136,23 +187,51 @@ export function sharesRoutes(ctx: AppContext): Router {
     }
   });
 
-  router.delete('/shares/:id', requireSession(ctx), requireCsrf(ctx), (req, res) => {
-    const id = idParam(req.params.id);
-    try {
-      const share = store.get(id);
-      store.delete(id);
+  router.delete(
+    '/shares/:id',
+    requireSession(ctx),
+    requireCsrf(ctx),
+    asyncHandler(async (req, res) => {
+      const id = idParam(req.params.id);
+      const { purgeCache } = deleteShareQuerySchema.parse(req.query);
+      let share: ShareRuntime;
+      try {
+        // Read before the row is gone: the name is what the Samba account is derived
+        // from and the cache path is what may have to be removed, and neither can be
+        // recovered afterwards.
+        share = store.get(id);
+        store.delete(id);
+      } catch (error) {
+        throw toHttp(error);
+      }
+
       ctx.audit?.record({
         actor: 'admin',
         action: 'shares.delete',
         target: share.name,
+        detail: purgeCache ? `purged ${share.cachePath}` : 'cache kept',
         ...(req.ip === undefined ? {} : { ip: req.ip }),
       });
-      reconcile(ctx);
+
+      // Samba first, and synchronously: it stops exporting the cache directory and
+      // takes the login with it. Doing this after the removal below would leave a
+      // window in which a machine could reconnect to a share that is being deleted
+      // underneath it.
+      ctx.samba?.dropAccount(share.name);
+      ctx.samba?.reconcile();
+
+      // Awaited, unlike every other caller of reconcile: it is what stops this share's
+      // worker and unmounts the server export, and removing the cache while a cycle is
+      // still copying into it would have the sync engine recreating what was deleted.
+      await ctx.sync?.reconcile();
+
+      if (purgeCache) {
+        await purgeShareCache(share.cachePath, share.name, CACHE_ROOT, ctx.logger);
+      }
+
       ok(res, { acknowledged: true as const });
-    } catch (error) {
-      throw toHttp(error);
-    }
-  });
+    }),
+  );
 
   router.post('/shares/:id/:action', requireSession(ctx), requireCsrf(ctx), (req, res) => {
     const id = idParam(req.params.id);

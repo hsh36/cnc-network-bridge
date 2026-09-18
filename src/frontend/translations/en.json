@@ -653,7 +653,17 @@
     "saved": "Settings saved",
     "save_settings": "Save settings",
     "reset": "Reset",
-    "load_error": "Could not load this share."
+    "load_error": "Could not load this share.",
+    "delete_button": "Delete share",
+    "delete_title": "Delete {name}?",
+    "delete_explain": "The share stops being exported to the machines, its mount is released, and its index, locks, versions and machine account are removed. Nothing on the server is touched.",
+    "delete_warning": "Machines currently connected to this share lose it immediately. Work a control still has open is not saved back.",
+    "delete_confirm_label": "Type {name} to confirm",
+    "delete_confirm_hint": "The name has to match exactly.",
+    "delete_purge_label": "Also delete the locally cached copies",
+    "delete_purge_off_hint": "The files stay on this bridge in",
+    "delete_purge_on_hint": "Everything below this path is removed for good:",
+    "delete_error": "The share could not be deleted."
   },
   "security": {
     "certificate_title": "Web interface certificate",

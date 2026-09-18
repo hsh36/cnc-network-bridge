@@ -5,6 +5,7 @@ import {
   absolutePathSchema,
   entityIdSchema,
   globPatternSchema,
+  queryBooleanSchema,
   secretWriteSchema,
   shareNameSchema,
   uncPathSchema,
@@ -149,3 +150,23 @@ export const shareActionSchema = z.enum(SHARE_ACTIONS);
 export type ShareAction = z.infer<typeof shareActionSchema>;
 
 export const shareIdParamsSchema = z.object({ id: z.coerce.number().int().positive() });
+
+/**
+ * What a delete should do with the files the share leaves behind.
+ *
+ * Deleting a share always drops the row, the index and the Samba export; the cached
+ * copies under the cache root are a separate decision, because they are files an
+ * operator may still want and the API cannot know whether the server still holds them.
+ *
+ * It defaults to keeping them, but keeping them is not free of consequence either: a
+ * share recreated under the same name adopts the same cache directory, and with the
+ * base index gone every leftover file reads as new and is pushed *up* to the server.
+ * That is why the choice is offered at all rather than silently made.
+ */
+export const deleteShareQuerySchema = z
+  .object({
+    purgeCache: queryBooleanSchema.default(false),
+  })
+  .strict();
+
+export type DeleteShareQuery = z.infer<typeof deleteShareQuerySchema>;

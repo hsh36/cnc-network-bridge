@@ -1,3 +1,6 @@
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { posix } from 'node:path';
+
 import { type Express } from 'express';
 import request from 'supertest';
 
@@ -16,7 +19,10 @@ import { AuditLog, installAuditGuards } from '../../security/audit-log';
 import { ShareStore } from '../../sync/share-store';
 import { BlobStore } from '../../versioning/blob-store';
 import { VersionStore } from '../../versioning/version-store';
+import { type PrivilegedRequest } from '../../privileged/verbs';
+import { SambaConfigManager } from '../../smb/samba-config-manager';
 import { createApp } from '../app';
+import { purgeShareCache } from './shares';
 import { AuthLogWriter } from '../../logging/auth-log';
 import { AuthManager } from '../auth';
 import { type AppContext } from '../context';
@@ -278,14 +284,22 @@ describe('per-share SMB credentials', () => {
 });
 
 describe('DELETE /shares/:id', () => {
-  it('removes the share', async () => {
+  async function createShare(): Promise<{
+    agent: ReturnType<typeof request.agent>;
+    csrf: string;
+    id: number;
+  }> {
     const { agent, csrf } = await loginAgent();
     const created = await agent
       .post('/api/v1/shares')
       .set('x-csrf-token', csrf)
       .send(VALID_SHARE)
       .expect(201);
-    const id = created.body.data.id as number;
+    return { agent, csrf, id: created.body.data.id as number };
+  }
+
+  it('removes the share', async () => {
+    const { agent, csrf, id } = await createShare();
 
     await agent
       .delete(`/api/v1/shares/${String(id)}`)
@@ -293,6 +307,120 @@ describe('DELETE /shares/:id', () => {
       .expect(200);
 
     expect((await agent.get(`/api/v1/shares/${String(id)}`)).status).toBe(404);
+  });
+
+  it('drops the Samba account the share owned', async () => {
+    // Reconciliation cannot do this one — it walks the shares that still exist — so a
+    // delete that forgot to ask would leave `tnc-programs` resolving forever, and a
+    // share recreated under that name would inherit the old password.
+    const calls: PrivilegedRequest[] = [];
+    ctx = {
+      ...buildContext(),
+      samba: new SambaConfigManager({
+        db,
+        config: ctx.config,
+        invoke: (request: PrivilegedRequest) => {
+          calls.push(request);
+          return { ok: true, verb: request.verb, commands: [], detail: {} };
+        },
+      }),
+    };
+    app = createApp(ctx);
+
+    const { agent, csrf, id } = await createShare();
+    calls.length = 0;
+
+    await agent
+      .delete(`/api/v1/shares/${String(id)}`)
+      .set('x-csrf-token', csrf)
+      .expect(200);
+
+    expect(calls).toContainEqual(
+      expect.objectContaining({
+        verb: 'set-samba-user',
+        username: 'tnc-programs',
+        remove: true,
+      }),
+    );
+  });
+
+  it('records in the audit trail whether the cache was kept', async () => {
+    const { agent, csrf, id } = await createShare();
+
+    await agent
+      .delete(`/api/v1/shares/${String(id)}`)
+      .set('x-csrf-token', csrf)
+      .expect(200);
+
+    const entry = db.get<{ action: string; detail: string | null }>(
+      "SELECT action, detail FROM audit_log WHERE action = 'shares.delete' ORDER BY id DESC LIMIT 1",
+    );
+    // The default is to keep the files, and the record has to say so: the same share
+    // name recreated later adopts the same directory.
+    expect(entry?.detail).toBe('cache kept');
+  });
+
+  it('records the purge when one was asked for', async () => {
+    const { agent, csrf, id } = await createShare();
+
+    await agent
+      .delete(`/api/v1/shares/${String(id)}?purgeCache=true`)
+      .set('x-csrf-token', csrf)
+      .expect(200);
+
+    const entry = db.get<{ detail: string | null }>(
+      "SELECT detail FROM audit_log WHERE action = 'shares.delete' ORDER BY id DESC LIMIT 1",
+    );
+    expect(entry?.detail).toBe('purged /srv/smb-bridge/programs');
+  });
+
+  it('reads purgeCache=false as false rather than as a non-empty string', async () => {
+    const { agent, csrf, id } = await createShare();
+
+    await agent
+      .delete(`/api/v1/shares/${String(id)}?purgeCache=false`)
+      .set('x-csrf-token', csrf)
+      .expect(200);
+
+    const entry = db.get<{ detail: string | null }>(
+      "SELECT detail FROM audit_log WHERE action = 'shares.delete' ORDER BY id DESC LIMIT 1",
+    );
+    expect(entry?.detail).toBe('cache kept');
+  });
+});
+
+// `posix.join`, not `join`: the paths the helper compares are appliance paths, and on a
+// Windows developer machine `join` would build a backslash path the check rightly
+// refuses. Node itself is happy to create either.
+describe('purgeShareCache', () => {
+  it('removes the directory the share owns', async () => {
+    const root = tmpDir();
+    const cache = posix.join(root, 'programs');
+    mkdirSync(posix.join(cache, 'sub'), { recursive: true });
+    writeFileSync(posix.join(cache, 'sub', 'part.h'), 'BEGIN PGM');
+
+    await expect(purgeShareCache(cache, 'programs', root)).resolves.toBe(true);
+    expect(existsSync(cache)).toBe(false);
+  });
+
+  it('refuses a path that is not the one the share owns', async () => {
+    // A recursive remove driven by a database column: the name has to agree with the
+    // path, or a row edited by hand becomes an arbitrary `rm -rf`.
+    const root = tmpDir();
+    const elsewhere = posix.join(root, 'not-this-one');
+    mkdirSync(elsewhere, { recursive: true });
+
+    await expect(purgeShareCache(elsewhere, 'programs', root)).resolves.toBe(false);
+    expect(existsSync(elsewhere)).toBe(true);
+  });
+
+  it('succeeds when the directory was never created', async () => {
+    // A share deleted before its first sync has no cache directory, and that is not an
+    // error the operator needs to hear about.
+    const root = tmpDir();
+    await expect(purgeShareCache(posix.join(root, 'programs'), 'programs', root)).resolves.toBe(
+      true,
+    );
   });
 });
 

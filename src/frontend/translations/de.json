@@ -653,7 +653,17 @@
     "saved": "Einstellungen gespeichert",
     "save_settings": "Einstellungen speichern",
     "reset": "Zurücksetzen",
-    "load_error": "Diese Freigabe konnte nicht geladen werden."
+    "load_error": "Diese Freigabe konnte nicht geladen werden.",
+    "delete_button": "Freigabe löschen",
+    "delete_title": "{name} löschen?",
+    "delete_explain": "Die Freigabe wird den Maschinen nicht mehr angeboten, die Einbindung wird gelöst, und Index, Sperren, Versionen und Maschinenkonto werden entfernt. Auf dem Server wird nichts verändert.",
+    "delete_warning": "Maschinen, die gerade verbunden sind, verlieren die Freigabe sofort. Was eine Steuerung noch offen hat, wird nicht zurückgeschrieben.",
+    "delete_confirm_label": "Zum Bestätigen {name} eintippen",
+    "delete_confirm_hint": "Der Name muss genau übereinstimmen.",
+    "delete_purge_label": "Auch die lokal zwischengespeicherten Kopien löschen",
+    "delete_purge_off_hint": "Die Dateien bleiben auf der Bridge liegen unter",
+    "delete_purge_on_hint": "Alles unterhalb dieses Pfads wird endgültig entfernt:",
+    "delete_error": "Die Freigabe konnte nicht gelöscht werden."
   },
   "security": {
     "certificate_title": "Zertifikat der Weboberfläche",

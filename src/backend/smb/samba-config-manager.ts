@@ -154,6 +154,35 @@ export class SambaConfigManager {
   }
 
   /**
+   * Drop the Samba and Unix account a share owned, by the share's name.
+   *
+   * Reconciliation cannot do this one: {@link reconcileAccounts} walks the shares that
+   * exist, and the whole point here is that this one no longer does. Nothing would ever
+   * revisit `tnc-<name>`, so a deleted share left a login behind that still resolved —
+   * and a share later recreated under the same name would silently inherit the old
+   * password rather than the one just typed.
+   *
+   * Idempotent and non-throwing, like the rest of this class: the helper tolerates
+   * removing an account that was never created, and a share the operator asked to
+   * delete must not survive because a `userdel` failed.
+   */
+  dropAccount(shareName: string): void {
+    const account = sambaAccountFor(shareName);
+    try {
+      this.invoke({ verb: 'set-samba-user', username: account, password: '', remove: true });
+    } catch (error) {
+      this.logger?.error(
+        {
+          share: shareName,
+          account,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'could not remove the Samba account of a deleted share',
+      );
+    }
+  }
+
+  /**
    * Make `smb.conf` match, and reload Samba if it changed.
    *
    * Never throws. A bridge that cannot write its Samba config is still bridging files

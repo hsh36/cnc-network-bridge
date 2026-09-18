@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { type ConflictMode } from '../../shared';
+import { ShareDelete } from './ShareDelete';
 import { ShareSides, type ShareSidesValue } from './ShareSides';
 import { ShareTuning } from './ShareTuning';
 import { Button } from './ui/Button';
@@ -59,6 +60,7 @@ export function ShareEdit({ shareId, onClose, onRefresh }: ShareEditProps): JSX.
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     if (share.data !== undefined) {
@@ -185,7 +187,7 @@ export function ShareEdit({ shareId, onClose, onRefresh }: ShareEditProps): JSX.
 
           <ShareTuning value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
 
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
             <Button onClick={handleSave} loading={saving}>
               {t('save_settings')}
             </Button>
@@ -193,11 +195,33 @@ export function ShareEdit({ shareId, onClose, onRefresh }: ShareEditProps): JSX.
               {t('reset')}
             </Button>
             <Button variant="ghost" onClick={onClose}>
-              Close
+              {t('close')}
+            </Button>
+            {/* Pushed to the far end rather than sitting next to Save: it is the one
+              control here that cannot be undone, and a misfire costs a share. */}
+            <Button variant="danger" className="ml-auto" onClick={() => setConfirmingDelete(true)}>
+              {t('delete_button')}
             </Button>
           </div>
         </div>
       </div>
+
+      {confirmingDelete && (
+        <ShareDelete
+          shareId={shareId}
+          shareName={share.data.name}
+          cachePath={share.data.cachePath}
+          onCancel={() => setConfirmingDelete(false)}
+          onDeleted={() => {
+            setConfirmingDelete(false);
+            // Refresh before closing: the list behind this dialog still shows the share
+            // that no longer exists, and closing onto a stale row is what makes an
+            // operator click delete a second time.
+            onRefresh();
+            onClose();
+          }}
+        />
+      )}
     </div>
   );
 }

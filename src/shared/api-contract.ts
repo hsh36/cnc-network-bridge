@@ -19,6 +19,7 @@ import {
   createShareRequestSchema,
   createTokenRequestSchema,
   createTokenResponseSchema,
+  deleteShareQuerySchema,
   eventStreamQuerySchema,
   fail2banStatusSchema,
   fileIndexEntrySchema,
@@ -311,9 +312,11 @@ export const apiContract = {
   'shares.delete': {
     method: 'DELETE',
     path: '/shares/:id',
-    summary: 'Delete a share, unmounting it and dropping its index.',
+    summary:
+      'Delete a share: unmount it, drop its index and Samba account, optionally purge its cache.',
     auth: 'session',
     params: idParams,
+    query: deleteShareQuerySchema,
     response: acknowledgedSchema,
     mutates: true,
   },
