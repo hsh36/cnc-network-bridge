@@ -34,6 +34,16 @@ describe('renderSmbConf', () => {
     expect(content).toContain('bind interfaces only = yes');
   });
 
+  it('gives a guest the service account, not nobody', () => {
+    // Measured on the appliance: with Samba's default guest account a control that
+    // cannot authenticate — which is most of them — got NT_STATUS_ACCESS_DENIED on
+    // every operation, because `nobody` is neither the owner nor in the group of the
+    // 0750 cache root the share exports.
+    const content = build();
+    expect(content).toContain('guest account = smbbridge');
+    expect(content).not.toContain('guest account = nobody');
+  });
+
   it('sets NT1 as the protocol floor so an iTNC 530 can connect', () => {
     expect(build()).toContain('server min protocol = NT1');
   });

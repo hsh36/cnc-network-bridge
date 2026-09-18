@@ -60,6 +60,16 @@ export const ROOTS = {
   releases: '/opt/smb-bridge/releases',
 } as const;
 
+/**
+ * The service account. It owns the cache a share exports, the state directory and the
+ * TLS key, and it is the identity `smbd` acts as on behalf of a machine.
+ *
+ * Here rather than beside {@link SERVICE_GROUP} in the handlers, because the config
+ * generator needs the name and must not pull the privileged half of the boundary in
+ * with it.
+ */
+export const SERVICE_ACCOUNT = 'smbbridge';
+
 /** systemd units the helper may act on. Anything else is refused. */
 export const ALLOWED_SERVICES = [
   'smb-bridge',

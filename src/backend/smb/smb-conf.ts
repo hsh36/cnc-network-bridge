@@ -1,7 +1,7 @@
 import Handlebars from 'handlebars';
 
 import { SHARE_NAME_PATTERN, TEMP_FILE_PREFIX } from '../../shared/constants';
-import { ROOTS } from '../privileged/verbs';
+import { ROOTS, SERVICE_ACCOUNT } from '../privileged/verbs';
 
 /**
  * The `smb.conf` generator (T12).
@@ -67,6 +67,23 @@ export interface SmbConfInput {
   readonly dosCharset?: string;
   readonly unixCharset?: string;
   readonly logLevel?: number;
+  /**
+   * The Unix account an unauthenticated machine acts as.
+   *
+   * Defaults to the service account, and that is the whole point rather than a
+   * convenience. A share's export root is the local cache: `/srv/smb-bridge` is 0750 and
+   * each share directory 2770, both owned by the service account, because the sync
+   * engine has to own what it writes. Samba's own default guest account is `nobody`,
+   * which is in neither the owner nor the group — so a control that connects as a guest
+   * cannot so much as traverse into the share, and every access comes back
+   * `NT_STATUS_ACCESS_DENIED`. Since most HEIDENHAIN controls cannot authenticate at
+   * all, that was the normal case, not an edge one.
+   *
+   * A guest session is still confined to the share's own path: `path` is checked to sit
+   * under the cache root, and `wide links` and `follow symlinks` are off, so acting as
+   * the service account does not reach the rest of what that account owns.
+   */
+  readonly guestAccount?: string;
   readonly auditFacility?: string;
   readonly auditPriority?: string;
   /** Global read-only, used by the failover controller when the server is unreachable. */
@@ -232,7 +249,7 @@ const TEMPLATE_SOURCE = `#
   logging = file
 
   map to guest = Bad User
-  guest account = nobody
+  guest account = {{guestAccount}}
 {{#each shares}}
 
 [{{name}}]
@@ -304,6 +321,7 @@ export function renderSmbConf(input: SmbConfInput): string {
     auditFacility: sanitiseValue(input.auditFacility ?? 'LOCAL5', 'auditFacility'),
     auditPriority: sanitiseValue(input.auditPriority ?? 'NOTICE', 'auditPriority'),
     logLevel: input.logLevel ?? 1,
+    guestAccount: sanitiseValue(input.guestAccount ?? SERVICE_ACCOUNT, 'guestAccount'),
     shares: input.shares.map((share) => ({
       name: share.name,
       path: share.path,
