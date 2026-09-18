@@ -55,23 +55,88 @@ const isIpLike = (value: string): boolean =>
   /^\d{1,3}(\.\d{1,3}){3}$/.test(value) || value.includes(':');
 
 /**
+ * IPv6 in the one spelling this module compares by.
+ *
+ * `::1` and `0:0:0:0:0:0:0:1` are the same address and two different strings, and the
+ * SAN list is deduplicated by string. Node reports the short form, the certificate reads
+ * back expanded, and a reissue carries the old names over — so `::1` appeared twice in
+ * every certificate this appliance ever issued. Harmless, and it made the list look like
+ * something nobody was maintaining.
+ *
+ * Expanded rather than compressed, because that is the form that comes back out of a
+ * certificate; normalising towards it means carried-over names match on the next pass.
+ * A zone index (`%eth0`) is dropped: it is local to this host and meaningless to a
+ * browser.
+ */
+function normaliseIpv6(value: string): string {
+  const address = value.split('%')[0] ?? value;
+  if (!address.includes(':')) {
+    return address;
+  }
+  const [head = '', tail = ''] = address.split('::');
+  const headParts = head === '' ? [] : head.split(':');
+  const tailParts = tail === '' ? [] : tail.split(':');
+  const parts = address.includes('::')
+    ? [
+        ...headParts,
+        ...Array<string>(Math.max(0, 8 - headParts.length - tailParts.length)).fill('0'),
+        ...tailParts,
+      ]
+    : headParts;
+  if (parts.length !== 8) {
+    return address;
+  }
+  return parts.map((part) => part.replace(/^0+(?=.)/, '') || '0').join(':');
+}
+
+/**
+ * Whether an address is one a browser could ever be pointed at.
+ *
+ * Link-local IPv6 is not. `fe80::` is only reachable with a zone index the browser has no
+ * way to supply, so it never matches anything — and because privacy extensions rotate
+ * those addresses while a reissue carries the old names over, each one that appeared
+ * stayed forever. The list grew without bound and told an operator nothing.
+ */
+function isUsefulAddress(address: string): boolean {
+  return !/^fe80:/i.test(address);
+}
+
+/**
  * Every address this device could plausibly be reached on, plus `localhost`. Automatic
  * — an operator who adds a second NIC should not also have to remember to regenerate
  * the certificate before that interface's address stops matching it.
  */
 export function defaultSubjectAltNames(hostname?: string): string[] {
-  const names = new Set<string>(['localhost', '127.0.0.1', '::1']);
+  const names = new Set<string>(['localhost', '127.0.0.1', normaliseIpv6('::1')]);
   if (hostname !== undefined && hostname.length > 0) {
     names.add(hostname);
   }
   for (const addresses of Object.values(networkInterfaces())) {
     for (const addr of addresses ?? []) {
-      if (!addr.internal) {
-        names.add(addr.address);
+      if (addr.internal || !isUsefulAddress(addr.address)) {
+        continue;
       }
+      names.add(normaliseIpv6(addr.address));
     }
   }
   return [...names];
+}
+
+/**
+ * The SAN list as it goes into a certificate: normalised, filtered, deduplicated.
+ *
+ * Applied to the carried-over names too, which is what stops an old certificate's link-
+ * local addresses and expanded duplicates from being copied forward for ever.
+ */
+export function normaliseSubjectAltNames(names: readonly string[]): string[] {
+  return [
+    ...new Set(
+      names
+        .filter((name) => name !== '')
+        .map((name) => (isIpLike(name) ? normaliseIpv6(name) : name))
+        .filter(isUsefulAddress),
+    ),
+  ];
 }
 
 function toForgeAltNames(
@@ -85,9 +150,11 @@ export function generateSelfSignedCertificate(
   options: GenerateSelfSignedOptions = {},
 ): CertificateMaterial {
   const commonName = options.commonName ?? 'smb-bridge.local';
-  const sans = [
-    ...new Set([commonName, ...defaultSubjectAltNames(), ...(options.additionalSans ?? [])]),
-  ];
+  const sans = normaliseSubjectAltNames([
+    commonName,
+    ...defaultSubjectAltNames(),
+    ...(options.additionalSans ?? []),
+  ]);
 
   const pems = selfsigned.generate([{ name: 'commonName', value: commonName }], {
     days: Math.round((options.validityYears ?? 10) * 365),

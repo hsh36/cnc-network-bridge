@@ -10,6 +10,7 @@ import {
   defaultSubjectAltNames,
   describeCertificate,
   ensureCertificate,
+  normaliseSubjectAltNames,
   generateSelfSignedCertificate,
   loadCertificateMaterial,
   saveCertificateMaterial,
@@ -24,11 +25,46 @@ afterEach(() => {
 describe('defaultSubjectAltNames', () => {
   it('always includes localhost and the loopback addresses', () => {
     const sans = defaultSubjectAltNames();
-    expect(sans).toEqual(expect.arrayContaining(['localhost', '127.0.0.1', '::1']));
+    // Expanded, which is the form a certificate reads back as. `::1` and
+    // `0:0:0:0:0:0:0:1` are one address and two strings, and a list deduplicated by
+    // string carried both forward on every reissue.
+    expect(sans).toEqual(expect.arrayContaining(['localhost', '127.0.0.1', '0:0:0:0:0:0:0:1']));
+    expect(sans).not.toContain('::1');
   });
 
   it('includes an explicit hostname when given', () => {
     expect(defaultSubjectAltNames('bridge.local')).toContain('bridge.local');
+  });
+
+  it('leaves out link-local addresses', () => {
+    // fe80:: needs a zone index no browser can supply, so it never matches anything —
+    // and privacy extensions rotate them while a reissue carries the old names over, so
+    // every one that ever appeared stayed.
+    expect(defaultSubjectAltNames().some((name) => /^fe80:/i.test(name))).toBe(false);
+  });
+});
+
+describe('normaliseSubjectAltNames', () => {
+  it('collapses the two spellings of one IPv6 address', () => {
+    expect(normaliseSubjectAltNames(['::1', '0:0:0:0:0:0:0:1'])).toEqual(['0:0:0:0:0:0:0:1']);
+  });
+
+  it('drops link-local addresses carried over from an older certificate', () => {
+    // The reissue path passes the previous certificate's names back in. Without this the
+    // list grew by one entry per address change and never shrank.
+    expect(
+      normaliseSubjectAltNames([
+        'bridge.local',
+        '172.16.35.1',
+        'FE80:0:0:0:A3E1:70BD:5C3A:F3C3',
+        'fe80::a610:42cc:8fd8:ec18%eth0',
+      ]),
+    ).toEqual(['bridge.local', '172.16.35.1']);
+  });
+
+  it('keeps ordinary names and addresses untouched', () => {
+    const names = ['hsh-smbbridge01', 'smb-bridge.local', '127.0.0.1', '172.16.35.70'];
+    expect(normaliseSubjectAltNames(names)).toEqual(names);
   });
 });
 
