@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { cleanupTmpDbs, tmpDb, tmpDir } from '../../../tests/support/tmp-db';
 import { ConfigManager } from '../config/config-manager';
@@ -437,5 +437,77 @@ describe('server-enforced locks', () => {
     );
     expect(row?.server_lock_ok).toBe(0);
     expect(row?.server_lock_error).toMatch(/not mounted/);
+  });
+});
+
+/**
+ * The one piece of lock state that outlives the process.
+ *
+ * A byte-range holder is a child process and dies with the service, which makes its
+ * lifetime self-correcting. A file whose write permission has been taken away stays that
+ * way until something puts it back — and a program nobody can save again is the failure
+ * this codebase has already paid for once, with orphaned `flock` holders.
+ */
+describe('write permission left behind', () => {
+  // Windows has no POSIX mode bits worth asserting on; the appliance is Linux.
+  const itOnPosix = process.platform === 'win32' ? it.skip : it;
+
+  itOnPosix('gives it back on release', () => {
+    const shareId = insertShare({});
+    writeFileSync(join(mountPoint, 'PART1.H'), 'BEGIN PGM PART1 MM\n', { mode: 0o660 });
+    chmodSync(join(mountPoint, 'PART1.H'), 0o660);
+
+    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
+    expect(statSync(join(mountPoint, 'PART1.H')).mode & 0o222).toBe(0);
+
+    manager.release(lock.id);
+    expect(statSync(join(mountPoint, 'PART1.H')).mode & 0o220).toBe(0o220);
+  });
+
+  itOnPosix('sweeps a released lock whose restore never happened', () => {
+    const shareId = insertShare({});
+    const file = join(mountPoint, 'PART1.H');
+    writeFileSync(file, 'BEGIN PGM PART1 MM\n', { mode: 0o660 });
+    chmodSync(file, 0o660);
+
+    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
+    manager.release(lock.id);
+
+    // The state a release that could not finish leaves behind: the row is closed, the
+    // flag still says we owe a restore, and the file is still read-only. Staged
+    // directly, because the ways to reach it for real — the mount gone at the wrong
+    // moment, the process killed between the two — are not reproducible in a unit test.
+    chmodSync(file, 0o440);
+    db.run('UPDATE locks SET server_read_only_applied = 1 WHERE id = @id', { id: lock.id });
+
+    expect(manager.sweepReadOnlyLeftovers()).toBe(1);
+    expect(statSync(file).mode & 0o220).toBe(0o220);
+  });
+
+  itOnPosix('leaves alone a file it did not take the permission from', () => {
+    const shareId = insertShare({});
+    const file = join(mountPoint, 'PART1.H');
+    writeFileSync(file, 'BEGIN PGM PART1 MM\n');
+    // An operator protected this deliberately, before any lock existed.
+    chmodSync(file, 0o440);
+
+    const lock = manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
+    manager.release(lock.id);
+
+    // Still theirs. Handing back a write bit nobody here removed would be the quiet
+    // damage this whole mechanism exists to prevent.
+    expect(statSync(file).mode & 0o222).toBe(0);
+  });
+
+  itOnPosix('does not sweep a lock that is still held', () => {
+    const shareId = insertShare({});
+    const file = join(mountPoint, 'PART1.H');
+    writeFileSync(file, 'BEGIN PGM PART1 MM\n', { mode: 0o660 });
+    chmodSync(file, 0o660);
+
+    manager.acquire({ shareId, relPath: 'PART1.H', origin: 'machine' });
+
+    expect(manager.sweepReadOnlyLeftovers()).toBe(0);
+    expect(statSync(file).mode & 0o222).toBe(0);
   });
 });
